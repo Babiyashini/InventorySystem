@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Invoice History</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .invoice-row {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .invoice-row:hover {
+            background-color: #e3f2fd;
+            transform: translateX(5px);
+        }
+        .status-paid { background: #d4edda; color: #155724; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-cancelled { background: #f8d7da; color: #721c24; }
+        .filter-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body onload="loadInvoices()">
+
+<nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+<div id="main-content">
+    <div class="page-header">
+        <div>
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-receipt me-2 text-primary"></i>
+                Invoice History
+            </h4>
+            <small class="text-muted">
+                <i class="fas fa-search me-1"></i> View and manage all sales invoices
+            </small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-outline-primary btn-sm" onclick="loadInvoices()">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <span class="badge bg-primary rounded-pill px-3 py-2">
+                <i class="fas fa-user-shield me-1"></i> {{ session['role'] }} Mode
+            </span>
+            <div class="user-badge">
+                <i class="fas fa-user-circle me-1"></i> {{ session['username'] }}
+            </div>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" id="searchInvoice" class="form-control" 
+                               placeholder="Search by invoice or customer..." onkeyup="filterInvoices()">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <input type="date" id="startDate" class="form-control" placeholder="Start Date">
+                </div>
+                <div class="col-md-3">
+                    <input type="date" id="endDate" class="form-control" placeholder="End Date">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" onclick="applyDateFilter()">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invoices Table -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="fw-bold mb-0">
+                    <i class="fas fa-list me-2 text-primary"></i>
+                    All Invoices
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice #</th>
+                                <th>Date</th>
+                                <th>Customer</th>
+                                <th>Items</th>
+                                <th>Total Amount</th>
+                                <th>Payment</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </thead>
+                            <tbody id="invoices-table-body">
+                                <tr><td colspan="8" class="text-center py-5">Loading invoices...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Invoice Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-invoice me-2"></i>Invoice Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="invoice-details-content">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-info" onclick="printInvoice()">
+                    <i class="fas fa-print me-1"></i> Print
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let allInvoices = [];
+
+    async function loadInvoices() {
+        const tbody = document.getElementById('invoices-table-body');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div> Loading...</td></tr>';
+        
+        try {
+            const response = await fetch('/get-sales');
+            let sales = await response.json();
+            
+            if (!Array.isArray(sales)) sales = [];
+            
+            // Group by invoice number (since your sales don't have invoice numbers, create virtual ones)
+            allInvoices = sales.map((s, index) => ({
+                id: s.id,
+                invoice_number: `INV-${s.id}`,
+                date: s.sale_date,
+                customer_name: s.customer_name || 'Walk-in Customer',
+                items_count: 1,
+                total_amount: parseFloat(s.final_price || s.sale_price || 0),
+                payment_method: s.payment_method || 'Cash',
+                status: 'Paid',
+                medicine_name: s.medicine_name,
+                quantity: s.quantity_sold,
+                unit_price: parseFloat(s.unit_price || (s.sale_price / s.quantity_sold) || 0)
+            }));
+            
+            displayInvoices(allInvoices);
+        } catch (error) {
+            console.error('Error:', error);
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading invoices</td></tr>';
+        }
+    }
+
+    function displayInvoices(invoices) {
+        const tbody = document.getElementById('invoices-table-body');
+        
+        if (invoices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">No invoices found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = invoices.map(inv => `
+            <tr class="invoice-row" onclick="viewInvoice(${inv.id})">
+                <td><strong>${inv.invoice_number}</strong></td>
+                <td>${inv.date ? inv.date.split(' ')[0] : 'N/A'}</td>
+                <td>${escapeHtml(inv.customer_name)}</td>
+                <td>${inv.items_count} item(s)</td>
+                <td class="fw-bold text-success">Rs. ${inv.total_amount.toFixed(2)}</td>
+                <td><span class="badge bg-secondary">${inv.payment_method}</span></td>
+                <td><span class="badge status-paid">${inv.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewInvoice(${inv.id})">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation(); printInvoiceDetails(${inv.id})">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterInvoices() {
+        const searchTerm = document.getElementById('searchInvoice').value.toLowerCase();
+        const filtered = allInvoices.filter(inv => 
+            inv.invoice_number.toLowerCase().includes(searchTerm) ||
+            inv.customer_name.toLowerCase().includes(searchTerm)
+        );
+        displayInvoices(filtered);
+    }
+
+    function applyDateFilter() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        let filtered = allInvoices;
+        
+        if (startDate) {
+            filtered = filtered.filter(inv => inv.date && inv.date.split(' ')[0] >= startDate);
+        }
+        if (endDate) {
+            filtered = filtered.filter(inv => inv.date && inv.date.split(' ')[0] <= endDate);
+        }
+        
+        displayInvoices(filtered);
+    }
+
+    async function viewInvoice(invoiceId) {
+        const invoice = allInvoices.find(i => i.id === invoiceId);
+        if (!invoice) return;
+        
+        const modalContent = document.getElementById('invoice-details-content');
+        modalContent.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>Invoice Number:</strong> ${invoice.invoice_number}<br>
+                    <strong>Date:</strong> ${invoice.date || 'N/A'}<br>
+                    <strong>Customer:</strong> ${escapeHtml(invoice.customer_name)}<br>
+                    <strong>Payment Method:</strong> ${invoice.payment_method}
+                </div>
+                <div class="col-md-6 text-end">
+                    <strong>Status:</strong> <span class="badge status-paid">${invoice.status}</span><br>
+                    <strong>Total Amount:</strong> <span class="fw-bold text-success">Rs. ${invoice.total_amount.toFixed(2)}</span>
+                </div>
+            </div>
+            <hr>
+            <h6 class="fw-bold">Items</h6>
+            <table class="table table-sm">
+                <thead class="table-light">
+                    <tr><th>Medicine</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${escapeHtml(invoice.medicine_name)}</td>
+                        <td>${invoice.quantity}</td>
+                        <td>Rs. ${invoice.unit_price.toFixed(2)}</td>
+                        <td>Rs. ${invoice.total_amount.toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+        
+        window.currentInvoice = invoice;
+        new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+    }
+
+    function printInvoice() {
+        if (!window.currentInvoice) return;
+        
+        const printWindow = window.open('', '_blank', 'width=600,height=800');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Invoice ${window.currentInvoice.invoice_number}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                    .invoice-title { font-size: 24px; font-weight: bold; }
+                    .details { margin: 20px 0; }
+                    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background: #f2f2f2; }
+                    .total { text-align: right; font-size: 18px; font-weight: bold; }
+                    .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>PHARMACY OS</h1>
+                    <p>123 Main Street, Colombo | Tel: 011-2345678</p>
+                </div>
+                <div class="invoice-title">TAX INVOICE</div>
+                <div class="details">
+                    <p><strong>Invoice No:</strong> ${window.currentInvoice.invoice_number}</p>
+                    <p><strong>Date:</strong> ${window.currentInvoice.date || 'N/A'}</p>
+                    <p><strong>Customer:</strong> ${window.currentInvoice.customer_name}</p>
+                </div>
+                <table>
+                    <thead><tr><th>Description</th><th>Quantity</th><th>Unit Price</th><th>Amount</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>${window.currentInvoice.medicine_name}</td>
+                            <td>${window.currentInvoice.quantity}</td>
+                            <td>Rs. ${window.currentInvoice.unit_price.toFixed(2)}</td>
+                            <td>Rs. ${window.currentInvoice.total_amount.toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="total">Total: Rs. ${window.currentInvoice.total_amount.toFixed(2)}</div>
+                <div class="footer">
+                    <p>Thank you for shopping with us!</p>
+                    <p>*** This is a computer-generated invoice ***</p>
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    }
+
+    function printInvoiceDetails(invoiceId) {
+        const invoice = allInvoices.find(i => i.id === invoiceId);
+        if (invoice) {
+            window.currentInvoice = invoice;
+            printInvoice();
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

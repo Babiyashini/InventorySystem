@@ -1,0 +1,406 @@
+:root {
+    --sidebar-bg: #1a1d20;
+    --sidebar-hover: #2c3136;
+    --pill-blue: #3498db;
+    --main-bg: #f0f2f5;
+    --card-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    --border-color: #dee2e6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--main-bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    display: flex;
+    overflow-x: hidden;
+    height: 100vh;
+}
+
+/* ==================== SIDEBAR ==================== */
+#sidebar {
+    width: 260px;
+    background-color: var(--sidebar-bg);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+}
+
+/* Scrollable menu area */
+.sidebar-menu-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+.sidebar-menu-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-track {
+    background: #2c3136;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-thumb {
+    background: #3498db;
+    border-radius: 4px;
+}
+
+.sidebar-header {
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 16px 20px;
+    border-bottom: 1px solid #3d444b;
+    text-align: center;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+
+.user-info {
+    padding: 12px 20px;
+    border-bottom: 1px solid #3d444b;
+    flex-shrink: 0;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: white;
+}
+
+.user-role {
+    font-size: 11px;
+    color: #adb5bd;
+    margin-top: 3px;
+}
+
+#sidebar .nav-link {
+    color: #adb5bd;
+    padding: 8px 16px;
+    margin: 2px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#sidebar .nav-link i {
+    width: 20px;
+    font-size: 14px;
+}
+
+#sidebar .nav-link:hover {
+    background: var(--sidebar-hover);
+    color: white;
+}
+
+#sidebar .nav-link.active {
+    background: var(--pill-blue);
+    color: white;
+    font-weight: 600;
+}
+
+/* Logout button - now inside scrollable area */
+#sidebar .nav-link.btn-logout {
+    background: #e74c3c !important;
+    color: white !important;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+#sidebar .nav-link.btn-logout:hover {
+    background: #c0392b !important;
+}
+
+/* ==================== MAIN CONTENT ==================== */
+#main-content {
+    margin-left: 260px;
+    width: calc(100% - 260px);
+    min-height: 100vh;
+    background: var(--main-bg);
+    overflow-y: auto;
+}
+
+.page-header {
+    background: white;
+    padding: 15px 25px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 99;
+}
+
+.page-header h4 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0;
+    color: #2c3e50;
+}
+
+.user-badge {
+    background: #e9ecef;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2c3e50;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.badge.bg-primary {
+    background: var(--pill-blue) !important;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+    padding: 5px 12px;
+}
+
+.content-body {
+    padding: 20px 25px;
+}
+
+/* ==================== CARDS ==================== */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.card-header {
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 20px;
+}
+
+.card-header h6 {
+    font-weight: 700;
+    font-size: 14px;
+    margin: 0;
+    color: #2c3e50;
+}
+
+/* ==================== TABLES ==================== */
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    padding: 10px 8px;
+}
+
+.table tbody td {
+    padding: 10px 8px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* ==================== FORMS ==================== */
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--pill-blue);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    outline: none;
+}
+
+.form-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    color: #6c757d;
+}
+
+/* ==================== BUTTONS ==================== */
+.btn-primary {
+    background: var(--pill-blue);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: #2980b9;
+    transform: translateY(-1px);
+}
+
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* ==================== BADGES ==================== */
+.badge {
+    padding: 4px 8px;
+    font-weight: 500;
+    border-radius: 20px;
+    font-size: 11px;
+}
+
+/* ==================== SEARCH RESULTS ==================== */
+#search-results {
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.2s ease;
+    padding: 10px 15px;
+    font-size: 13px;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* ==================== PROGRESS BAR ==================== */
+.progress {
+    border-radius: 8px;
+    background-color: #e9ecef;
+    overflow: hidden;
+    height: 6px;
+}
+
+.progress-bar {
+    background: var(--pill-blue);
+    border-radius: 8px;
+    transition: width 0.6s ease;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+    #sidebar {
+        width: 70px;
+    }
+    
+    .sidebar-header {
+        font-size: 0;
+        padding: 16px 0;
+    }
+    
+    .sidebar-header:before {
+        content: "📦";
+        font-size: 20px;
+        display: block;
+        text-align: center;
+    }
+    
+    .user-info {
+        display: none;
+    }
+    
+    #sidebar .nav-link {
+        padding: 10px;
+        margin: 2px 8px;
+        justify-content: center;
+    }
+    
+    #sidebar .nav-link span {
+        display: none;
+    }
+    
+    #main-content {
+        margin-left: 70px;
+        width: calc(100% - 70px);
+    }
+    
+    .page-header h4 {
+        font-size: 1rem;
+    }
+    
+    .user-badge {
+        display: none;
+    }
+    
+    .content-body {
+        padding: 15px;
+    }
+}
+
+/* ==================== UTILITY CLASSES ==================== */
+.text-primary {
+    color: var(--pill-blue) !important;
+}
+
+.bg-primary {
+    background: var(--pill-blue) !important;
+}
+
+.shadow-sm {
+    box-shadow: var(--card-shadow) !important;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Animation for alerts */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-animation {
+    animation: fadeIn 0.3s ease-out;
+}

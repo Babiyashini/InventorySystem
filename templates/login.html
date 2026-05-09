@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Secure Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(52,152,219,0.1)"/><circle cx="80" cy="40" r="3" fill="rgba(52,152,219,0.1)"/><circle cx="50" cy="80" r="2" fill="rgba(52,152,219,0.1)"/></svg>');
+            background-repeat: repeat;
+            opacity: 0.5;
+            animation: float 20s linear infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Main Container */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Login Card */
+        .login-card {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 480px;
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Card Header */
+        .card-header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 40px 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .logo-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 25px -5px rgba(52, 152, 219, 0.3);
+        }
+
+        .logo-icon i {
+            font-size: 40px;
+            color: white;
+        }
+
+        .card-header h2 {
+            color: white;
+            font-weight: 700;
+            font-size: 28px;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .card-header p {
+            color: #94a3b8;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        /* Card Body */
+        .card-body {
+            padding: 40px;
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 28px;
+        }
+
+        .input-group-custom {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 16px;
+            color: #94a3b8;
+            font-size: 18px;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 1;
+        }
+
+        .form-control-custom {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            background: white;
+            color: #1e293b;
+        }
+
+        .form-control-custom:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1);
+        }
+
+        .form-control-custom:focus + .input-icon {
+            color: #3498db;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Password Toggle */
+        .password-toggle {
+            position: absolute;
+            right: 16px;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: color 0.3s;
+            z-index: 1;
+            background: white;
+            padding: 0 4px;
+        }
+
+        .password-toggle:hover {
+            color: #3498db;
+        }
+
+        /* Login Button */
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        /* Divider */
+        .divider {
+            text-align: center;
+            margin: 24px 0;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .divider span {
+            background: white;
+            padding: 0 16px;
+            position: relative;
+            color: #94a3b8;
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* Demo Credentials */
+        .demo-credentials {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 16px;
+            margin-top: 24px;
+        }
+
+        .demo-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .demo-title i {
+            font-size: 14px;
+        }
+
+        .cred-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .cred-row:last-child {
+            border-bottom: none;
+        }
+
+        .cred-label {
+            font-weight: 600;
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .cred-value {
+            font-family: 'Courier New', monospace;
+            color: #3498db;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .copy-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.3s;
+            padding: 4px 8px;
+        }
+
+        .copy-btn:hover {
+            color: #3498db;
+        }
+
+        /* Alert Styles */
+        .alert-custom {
+            border-radius: 16px;
+            border: none;
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .alert-warning {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        /* Footer */
+        .card-footer {
+            background: #f8fafc;
+            padding: 20px 40px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .card-footer p {
+            margin: 0;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .card-footer a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .card-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading State */
+        .btn-login.loading {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .btn-login.loading .btn-text {
+            display: none;
+        }
+
+        .btn-login.loading .spinner {
+            display: inline-block;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 576px) {
+            .card-body {
+                padding: 30px 24px;
+            }
+            .card-header {
+                padding: 30px 24px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    
+    <div class="login-container">
+        <div class="login-card">
+            <div class="card-header">
+                <div class="logo-icon">
+                    <i class="fas fa-capsules"></i>
+                </div>
+                <h2>PHARMACY OS</h2>
+                <p>Enterprise Inventory Management System</p>
+            </div>
+            
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert-custom alert-{{ category }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }} me-2"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form method="POST" action="/login" id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-user me-1"></i> USERNAME
+                        </label>
+                        <div class="input-group-custom">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" name="username" class="form-control-custom" 
+                                   placeholder="Enter your username" required autofocus>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-lock me-1"></i> PASSWORD
+                        </label>
+                        <div class="input-group-custom">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" name="password" id="password" class="form-control-custom" 
+                                   placeholder="Enter your password" required>
+                            <i class="fas fa-eye-slash password-toggle" id="togglePassword"></i>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-login" id="loginBtn">
+                        <span class="btn-text"><i class="fas fa-sign-in-alt me-2"></i> SECURE LOGIN</span>
+                        <span class="spinner"></span>
+                    </button>
+                </form>
+                
+                <div class="divider">
+                    <span>Demo Credentials</span>
+                </div>
+                
+                <div class="demo-credentials">
+                    <div class="demo-title">
+                        <i class="fas fa-info-circle"></i>
+                        Test Account
+                    </div>
+                    <div class="cred-row">
+                        <span class="cred-label">
+                            <i class="fas fa-user me-1"></i> Username:
+                        </span>
+                        <span class="cred-value">
+                            admin
+                            <button class="copy-btn" onclick="copyToClipboard('admin')" title="Copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </span>
+                    </div>
+                    <div class="cred-row">
+                        <span class="cred-label">
+                            <i class="fas fa-lock me-1"></i> Password:
+                        </span>
+                        <span class="cred-value">
+                            admin123
+                            <button class="copy-btn" onclick="copyToClipboard('admin123')" title="Copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-footer">
+                <p>
+                    <i class="fas fa-shield-alt me-1"></i> Secure Connection • 
+                    Role-Based Access Control • 
+                    <i class="fas fa-chart-line ms-1 me-1"></i> ML Powered
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Password visibility toggle
+        const togglePassword = document.getElementById('togglePassword');
+        const password = document.getElementById('password');
+        
+        togglePassword.addEventListener('click', function() {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
+        });
+        
+        // Form submission loading state
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+        
+        loginForm.addEventListener('submit', function() {
+            loginBtn.classList.add('loading');
+        });
+        
+        // Copy to clipboard function
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                // Show temporary tooltip
+                const btn = event.target.closest('.copy-btn');
+                const originalIcon = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    btn.innerHTML = originalIcon;
+                }, 1500);
+            });
+        }
+        
+        // Auto-dismiss alerts after 3 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-custom');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                setTimeout(() => bsAlert.close(), 3000);
+            });
+        }, 3000);
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

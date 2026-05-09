@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Inventory Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Additional Inventory Styles */
+        .stock-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+        }
+        
+        .filter-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: flex-end;
+        }
+        
+        .modal-backdrop {
+            z-index: 1040;
+        }
+        
+        .modal {
+            z-index: 1050;
+        }
+        
+        .export-btn {
+            transition: all 0.3s;
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-card {
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .filter-active {
+            background-color: #e3f2fd;
+            border-color: #3498db;
+        }
+    </style>
+</head>
+<body onload="initializeInventory()">
+   <nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+    <div id="main-content">
+        <div class="page-header">
+            <div>
+                <h4 class="fw-bold mb-0">
+                    <i class="fas fa-boxes me-2 text-primary"></i>
+                    Inventory Management
+                </h4>
+                <small class="text-muted">
+                    <i class="fas fa-chart-line me-1"></i> Real-time stock tracking
+                    <i class="fas fa-bell ms-3 me-1"></i> Expiry & low stock alerts
+                </small>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="exportToCSV()">
+                    <i class="fas fa-download me-1"></i> Export
+                </button>
+                <button class="btn btn-outline-success btn-sm" onclick="refreshInventory()">
+                    <i class="fas fa-sync-alt me-1"></i> Refresh
+                </button>
+                <span class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="fas fa-user-shield me-1"></i> Admin Mode
+                </span>
+                <div class="user-badge">
+                    <i class="fas fa-user-circle me-1"></i> Babiyashini
+                </div>
+            </div>
+        </div>
+
+        <div class="content-body">
+            <!-- Statistics Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm" onclick="filterByStatus('all')">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Total Medicines</small>
+                                    <h3 class="fw-bold mt-2 mb-0" id="total-medicines">0</h3>
+                                </div>
+                                <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-capsules fa-2x text-primary"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm" onclick="filterByStatus('low')">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Low Stock</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-danger" id="low-stock-count">0</h3>
+                                </div>
+                                <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                                </div>
+                            </div>
+                        </div>  
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm" onclick="filterByStatus('expired')">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Expired</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-warning" id="expired-count">0</h3>
+                                </div>
+                                <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-calendar-times fa-2x text-warning"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm" onclick="filterByStatus('near-expiry')">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Near Expiry</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-info" id="near-expiry-count">0</h3>
+                                </div>
+                                <div class="bg-info bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-hourglass-half fa-2x text-info"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add New Medicine Form -->
+            <div class="card p-4 border-0 shadow-sm mb-4">
+                <h6 class="fw-bold mb-3 text-primary">
+                    <i class="fas fa-plus-circle me-2"></i>Add New Medication
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="small fw-bold text-muted">Medicine Name *</label>
+                        <input type="text" id="name" class="form-control" placeholder="Enter medicine name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small fw-bold text-muted">Category</label>
+                        <input type="text" id="category" class="form-control" placeholder="e.g., Pain Relief">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small fw-bold text-muted">Supplier</label>
+                        <select id="supplier-select" class="form-select">
+                            <option value="">Select Supplier...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small fw-bold text-muted">Quantity</label>
+                        <input type="number" id="quantity" class="form-control" placeholder="0" min="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="small fw-bold text-muted">Price (LKR)</label>
+                        <input type="number" step="0.01" id="price" class="form-control" placeholder="0.00">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="small fw-bold text-muted">Expiry Date</label>
+                        <input type="date" id="expiry_date" class="form-control">
+                    </div>
+                    <div class="col-md-12">
+                        <button class="btn btn-primary px-4" onclick="addMedicine()">
+                            <i class="fas fa-save me-2"></i> Add Medicine
+                        </button>
+                        <button class="btn btn-secondary px-4 ms-2" onclick="clearForm()">
+                            <i class="fas fa-eraser me-2"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter & Search Section -->
+            <div class="filter-section mb-4">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" id="searchInput" class="form-control" 
+                                   placeholder="Search by medicine name..." onkeyup="filterTable()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="categoryFilter" class="form-select" onchange="filterTable()">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="statusFilter" class="form-select" onchange="filterTable()">
+                            <option value="all">All Status</option>
+                            <option value="low">Low Stock (&lt;10)</option>
+                            <option value="expired">Expired</option>
+                            <option value="near-expiry">Near Expiry (&lt;30 days)</option>
+                            <option value="normal">Normal Stock</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+                            <i class="fas fa-undo-alt me-1"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory Table -->
+            <div class="card border-0 shadow-sm overflow-hidden">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-list me-2"></i>Current Stock Levels
+                    </h6>
+                    <span class="badge bg-secondary" id="record-count">0 records</span>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-4">ID</th>
+                                <th>Medication Details</th>
+                                <th>Category</th>
+                                <th>Stock Level</th>
+                                <th>Unit Price</th>
+                                <th>Expiry Date</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medicine-table">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">
+                                    <i class="fas fa-spinner fa-spin fa-2x mb-2 d-block"></i>
+                                    Loading medicines...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Medicine Modal -->
+    <div class="modal fade" id="editMedicineModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Edit Medicine
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-id">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Medicine Name *</label>
+                            <input type="text" id="edit-name" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Category</label>
+                            <input type="text" id="edit-category" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Supplier</label>
+                            <select id="edit-supplier" class="form-select">
+                                <option value="">Select Supplier...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Quantity</label>
+                            <input type="number" id="edit-quantity" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Price (LKR)</label>
+                            <input type="number" step="0.01" id="edit-price" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Expiry Date</label>
+                            <input type="date" id="edit-expiry_date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="updateMedicine()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Adjustment Modal -->
+    <div class="modal fade" id="stockAdjustModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exchange-alt me-2"></i>Adjust Stock
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="adjust-id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Medicine</label>
+                        <p id="adjust-name" class="fw-bold mb-0"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Current Stock</label>
+                        <p id="adjust-current" class="mb-0"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Adjustment Type</label>
+                        <select id="adjust-type" class="form-select" onchange="toggleAdjustmentFields()">
+                            <option value="add">Add Stock (Purchase)</option>
+                            <option value="remove">Remove Stock (Damage/Loss)</option>
+                            <option value="set">Set to Specific Quantity</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="adjust-quantity-field">
+                        <label class="form-label fw-bold">Quantity</label>
+                        <input type="number" id="adjust-quantity" class="form-control" min="1">
+                    </div>
+                    <div class="mb-3" id="adjust-reason-field">
+                        <label class="form-label fw-bold">Reason</label>
+                        <textarea id="adjust-reason" class="form-control" rows="2" 
+                                  placeholder="e.g., New stock received, Damaged items, etc."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" onclick="adjustStock()">Apply Adjustment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allMedicines = [];
+        let currentFilter = 'all';
+        
+        function initializeInventory() {
+            populateSuppliers();
+            loadMedicines();
+            populateCategoryFilter();
+        }
+        
+        async function populateSuppliers() {
+            try {
+                const response = await fetch('/get-suppliers');
+                const suppliers = await response.json();
+                const dropdown = document.getElementById('supplier-select');
+                const editDropdown = document.getElementById('edit-supplier');
+                
+                const options = '<option value="">Select Supplier...</option>' + 
+                    suppliers.map(sup => `<option value="${sup.name}">${sup.name}</option>`).join('');
+                
+                dropdown.innerHTML = options;
+                editDropdown.innerHTML = options;
+            } catch (e) { 
+                console.error("Supplier load failed", e); 
+            }
+        }
+        
+        async function addMedicine() {
+            const medicineData = {
+                name: document.getElementById('name').value.trim(),
+                category: document.getElementById('category').value.trim(),
+                supplier: document.getElementById('supplier-select').value,
+                quantity: parseInt(document.getElementById('quantity').value) || 0,
+                price: parseFloat(document.getElementById('price').value) || 0,
+                expiry_date: document.getElementById('expiry_date').value || null
+            };
+            
+            if(!medicineData.name) {
+                alert("Please enter medicine name!");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/add-medicine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(medicineData)
+                });
+                
+                if (response.ok) {
+                    showToast('success', 'Medicine added successfully!');
+                    clearForm();
+                    loadMedicines();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    showToast('error', error.error || "Failed to add medicine");
+                }
+            } catch (e) {
+                showToast('error', "Server error. Please try again.");
+                console.error(e);
+            }
+        }
+        
+        async function loadMedicines() {
+            try {
+                const response = await fetch('/get-medicines');
+                allMedicines = await response.json();
+                updateStats();
+                filterTable();
+            } catch (e) {
+                console.error("Error loading medicines:", e);
+                document.getElementById('medicine-table').innerHTML = 
+                    '<tr><td colspan="7" class="text-center text-danger">Error loading medicines</td></tr>';
+            }
+        }
+        
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            
+            const filtered = allMedicines.filter(med => {
+                // Search filter
+                if (searchTerm && !med.name.toLowerCase().includes(searchTerm)) return false;
+                
+                // Category filter
+                if (categoryFilter && med.category !== categoryFilter) return false;
+                
+                // Status filter
+                const isLow = med.quantity < 10;
+                const isExpired = med.expiry_date && new Date(med.expiry_date) < new Date();
+                const daysToExpiry = med.expiry_date ? 
+                    Math.ceil((new Date(med.expiry_date) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                const isNearExpiry = daysToExpiry && daysToExpiry > 0 && daysToExpiry <= 30;
+                
+                switch(statusFilter) {
+                    case 'low': if (!isLow) return false; break;
+                    case 'expired': if (!isExpired) return false; break;
+                    case 'near-expiry': if (!isNearExpiry) return false; break;
+                    case 'normal': if (isLow || isExpired) return false; break;
+                    default: break;
+                }
+                return true;
+            });
+            
+            displayMedicines(filtered);
+            document.getElementById('record-count').innerText = `${filtered.length} records`;
+        }
+        
+        function displayMedicines(medicines) {
+            const tableBody = document.getElementById('medicine-table');
+            
+            if (medicines.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">No medicines found</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = medicines.map(m => {
+                const isLow = m.quantity < 10;
+                const isExpired = m.expiry_date && new Date(m.expiry_date) < new Date();
+                const daysToExpiry = m.expiry_date ? 
+                    Math.ceil((new Date(m.expiry_date) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                const isNearExpiry = daysToExpiry && daysToExpiry > 0 && daysToExpiry <= 30;
+                
+                let expiryClass = '';
+                let expiryText = m.expiry_date || 'N/A';
+                if (isExpired) {
+                    expiryClass = 'text-danger fw-bold';
+                    expiryText = `EXPIRED: ${m.expiry_date}`;
+                } else if (isNearExpiry) {
+                    expiryClass = 'text-warning fw-bold';
+                    expiryText = `${m.expiry_date} (${daysToExpiry} days left)`;
+                }
+                
+                return `
+                    <tr class="${isLow ? 'table-danger' : ''} ${isExpired ? 'table-warning' : ''}">
+                        <td class="ps-4 text-muted">#${m.id}</td>
+                        <td>
+                            <div class="fw-bold">${escapeHtml(m.name)}</div>
+                            <div class="small text-muted">${m.supplier || 'General'}</div>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">${m.category || 'Uncategorized'}</span></td>
+                        <td>
+                            <span class="fw-bold ${isLow ? 'text-danger' : ''}">${m.quantity}</span>
+                            ${isLow && !isExpired ? '<br><small class="text-danger fw-bold">⚠️ LOW STOCK</small>' : ''}
+                            ${isExpired ? '<br><small class="text-warning fw-bold">⚠️ EXPIRED</small>' : ''}
+                        </td>
+                        <td>LKR ${parseFloat(m.price).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td class="${expiryClass}">${expiryText}</td>
+                        <td class="text-end pe-4">
+                            <div class="action-buttons">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editMedicine(${m.id})" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="openStockAdjust(${m.id}, '${escapeHtml(m.name)}', ${m.quantity})" title="Adjust Stock">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteMedicine(${m.id})" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        async function editMedicine(id) {
+            try {
+                const medicine = allMedicines.find(m => m.id === id);
+                if (!medicine) return;
+                
+                document.getElementById('edit-id').value = medicine.id;
+                document.getElementById('edit-name').value = medicine.name;
+                document.getElementById('edit-category').value = medicine.category || '';
+                document.getElementById('edit-supplier').value = medicine.supplier || '';
+                document.getElementById('edit-quantity').value = medicine.quantity;
+                document.getElementById('edit-price').value = medicine.price;
+                document.getElementById('edit-expiry_date').value = medicine.expiry_date || '';
+                
+                new bootstrap.Modal(document.getElementById('editMedicineModal')).show();
+            } catch (error) {
+                showToast('error', 'Error loading medicine data');
+            }
+        }
+        
+        async function updateMedicine() {
+            const id = document.getElementById('edit-id').value;
+            const data = {
+                name: document.getElementById('edit-name').value,
+                category: document.getElementById('edit-category').value,
+                supplier: document.getElementById('edit-supplier').value,
+                quantity: parseInt(document.getElementById('edit-quantity').value),
+                price: parseFloat(document.getElementById('edit-price').value),
+                expiry_date: document.getElementById('edit-expiry_date').value || null
+            };
+            
+            try {
+                const response = await fetch(`/update-medicine/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showToast('success', 'Medicine updated successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('editMedicineModal')).hide();
+                    loadMedicines();
+                } else {
+                    const error = await response.json();
+                    showToast('error', error.error || 'Update failed');
+                }
+            } catch (e) {
+                showToast('error', 'Server error');
+            }
+        }
+        
+        function openStockAdjust(id, name, currentStock) {
+            document.getElementById('adjust-id').value = id;
+            document.getElementById('adjust-name').innerText = name;
+            document.getElementById('adjust-current').innerText = currentStock;
+            document.getElementById('adjust-quantity').value = '';
+            document.getElementById('adjust-reason').value = '';
+            toggleAdjustmentFields();
+            new bootstrap.Modal(document.getElementById('stockAdjustModal')).show();
+        }
+        
+        function toggleAdjustmentFields() {
+            const type = document.getElementById('adjust-type').value;
+            const qtyField = document.getElementById('adjust-quantity-field');
+            const reasonField = document.getElementById('adjust-reason-field');
+            qtyField.style.display = 'block';
+            reasonField.style.display = 'block';
+        }
+        
+        async function adjustStock() {
+            const id = document.getElementById('adjust-id').value;
+            const type = document.getElementById('adjust-type').value;
+            const quantity = parseInt(document.getElementById('adjust-quantity').value);
+            const reason = document.getElementById('adjust-reason').value;
+            
+            if (!quantity || quantity <= 0) {
+                showToast('error', 'Please enter a valid quantity');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/adjust-stock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, type, quantity, reason })
+                });
+                
+                if (response.ok) {
+                    showToast('success', 'Stock adjusted successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('stockAdjustModal')).hide();
+                    loadMedicines();
+                } else {
+                    const error = await response.json();
+                    showToast('error', error.error || 'Adjustment failed');
+                }
+            } catch (e) {
+                showToast('error', 'Server error');
+            }
+        }
+        
+        async function deleteMedicine(id) {
+            if (confirm("Delete this medication? This action cannot be undone.")) {
+                try {
+                    const response = await fetch(`/delete-medicine/${id}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        showToast('success', 'Medicine deleted successfully!');
+                        loadMedicines();
+                    } else {
+                        const error = await response.json();
+                        showToast('error', error.error || "Delete failed");
+                    }
+                } catch (e) {
+                    showToast('error', "Server error. Please try again.");
+                }
+            }
+        }
+        
+        function updateStats() {
+            const total = allMedicines.length;
+            const lowStock = allMedicines.filter(m => m.quantity < 10 && (!m.expiry_date || new Date(m.expiry_date) >= new Date())).length;
+            const expired = allMedicines.filter(m => m.expiry_date && new Date(m.expiry_date) < new Date()).length;
+            const nearExpiry = allMedicines.filter(m => {
+                if (!m.expiry_date) return false;
+                const daysLeft = Math.ceil((new Date(m.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
+                return daysLeft > 0 && daysLeft <= 30;
+            }).length;
+            
+            document.getElementById('total-medicines').innerText = total;
+            document.getElementById('low-stock-count').innerText = lowStock;
+            document.getElementById('expired-count').innerText = expired;
+            document.getElementById('near-expiry-count').innerText = nearExpiry;
+        }
+        
+        function filterByStatus(status) {
+            const filterSelect = document.getElementById('statusFilter');
+            switch(status) {
+                case 'low': filterSelect.value = 'low'; break;
+                case 'expired': filterSelect.value = 'expired'; break;
+                case 'near-expiry': filterSelect.value = 'near-expiry'; break;
+                default: filterSelect.value = 'all';
+            }
+            filterTable();
+        }
+        
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('statusFilter').value = 'all';
+            filterTable();
+        }
+        
+        function clearForm() {
+            document.getElementById('name').value = '';
+            document.getElementById('category').value = '';
+            document.getElementById('supplier-select').value = '';
+            document.getElementById('quantity').value = '';
+            document.getElementById('price').value = '';
+            document.getElementById('expiry_date').value = '';
+        }
+        
+        function refreshInventory() {
+            loadMedicines();
+            showToast('info', 'Inventory refreshed');
+        }
+        
+        async function populateCategoryFilter() {
+            try {
+                const response = await fetch('/get-medicines');
+                const medicines = await response.json();
+                const categories = [...new Set(medicines.map(m => m.category).filter(c => c))];
+                const filter = document.getElementById('categoryFilter');
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    filter.appendChild(option);
+                });
+            } catch (e) {
+                console.error('Error loading categories:', e);
+            }
+        }
+        
+        function exportToCSV() {
+            if (allMedicines.length === 0) {
+                showToast('error', 'No data to export');
+                return;
+            }
+            
+            const headers = ['ID', 'Name', 'Category', 'Supplier', 'Quantity', 'Price', 'Expiry Date'];
+            const rows = allMedicines.map(m => [
+                m.id, m.name, m.category || '', m.supplier || '', m.quantity, m.price, m.expiry_date || ''
+            ]);
+            
+            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inventory_export_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('success', 'Export completed!');
+        }
+        
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

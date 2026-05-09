@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Batch Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .batch-card {
+            transition: all 0.3s;
+            border-left: 4px solid;
+        }
+        .batch-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .expiry-critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        .expiry-warning {
+            border-left-color: #ffc107;
+            background: #fff9e6;
+        }
+        .expiry-normal {
+            border-left-color: #28a745;
+        }
+        .progress-bar-custom {
+            height: 8px;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .batch-filter {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body onload="loadBatches()">
+    <nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+
+    <div id="main-content">
+        <div class="page-header">
+            <div>
+                <h4 class="fw-bold mb-0">
+                    <i class="fas fa-layer-group me-2 text-primary"></i>
+                    Batch Management
+                </h4>
+                <small class="text-muted">
+                    <i class="fas fa-calendar-alt me-1"></i> Track batches by expiry
+                    <i class="fas fa-chart-line ms-3 me-1"></i> Real-time stock monitoring
+                </small>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshBatches()">
+                    <i class="fas fa-sync-alt me-1"></i> Refresh
+                </button>
+                <span class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="fas fa-user-shield me-1"></i> Admin Mode
+                </span>
+                <div class="user-badge">
+                    <i class="fas fa-user-circle me-1"></i> Babiyashini
+                </div>
+            </div>
+        </div>
+
+        <div class="content-body">
+            <!-- Statistics Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Total Batches</small>
+                                    <h3 class="fw-bold mt-2 mb-0" id="total-batches">0</h3>
+                                </div>
+                                <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-layer-group fa-2x text-primary"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Expiring Soon</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-warning" id="expiring-soon">0</h3>
+                                    <small>&lt; 30 days</small>
+                                </div>
+                                <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-hourglass-half fa-2x text-warning"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Expired</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-danger" id="expired-batches">0</h3>
+                                </div>
+                                <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-calendar-times fa-2x text-danger"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold">Total Stock</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-success" id="total-stock-units">0</h3>
+                                    <small>units</small>
+                                </div>
+                                <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-capsules fa-2x text-success"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="batch-filter mb-4">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" id="searchBatch" class="form-control" 
+                                   placeholder="Search by medicine or batch number..." 
+                                   onkeyup="filterBatches()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="expiryFilter" class="form-select" onchange="filterBatches()">
+                            <option value="all">All Batches</option>
+                            <option value="expired">Expired</option>
+                            <option value="expiring-soon">Expiring Soon (&lt;30 days)</option>
+                            <option value="normal">Normal</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="stockFilter" class="form-select" onchange="filterBatches()">
+                            <option value="all">All Stock Levels</option>
+                            <option value="low">Low Stock (&lt;10)</option>
+                            <option value="out">Out of Stock (0)</option>
+                            <option value="normal">Normal Stock</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+                            <i class="fas fa-undo-alt me-1"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batches Grid -->
+            <div class="row g-4" id="batches-container">
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading batches...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Batch Details Modal -->
+    <div class="modal fade" id="batchModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Batch Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="batch-details-content">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allBatches = [];
+
+        async function loadBatches() {
+            try {
+                const response = await fetch('/get-batches');
+                if (!response.ok) throw new Error('Failed to load batches');
+                allBatches = await response.json();
+                updateStats();
+                displayBatches();
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('batches-container').innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <p class="text-danger">Error loading batches. Please refresh.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateStats() {
+            const total = allBatches.length;
+            const expiringSoon = allBatches.filter(b => b.days_until_expiry > 0 && b.days_until_expiry <= 30).length;
+            const expired = allBatches.filter(b => b.days_until_expiry <= 0).length;
+            const totalStock = allBatches.reduce((sum, b) => sum + b.quantity_current, 0);
+            
+            document.getElementById('total-batches').innerText = total;
+            document.getElementById('expiring-soon').innerText = expiringSoon;
+            document.getElementById('expired-batches').innerText = expired;
+            document.getElementById('total-stock-units').innerText = totalStock;
+        }
+
+        function displayBatches() {
+            const container = document.getElementById('batches-container');
+            let filtered = [...allBatches];
+            
+            const searchTerm = document.getElementById('searchBatch').value.toLowerCase();
+            if (searchTerm) {
+                filtered = filtered.filter(b => 
+                    b.medicine_name.toLowerCase().includes(searchTerm) || 
+                    b.batch_number.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            const expiryFilter = document.getElementById('expiryFilter').value;
+            if (expiryFilter !== 'all') {
+                filtered = filtered.filter(b => {
+                    if (expiryFilter === 'expired') return b.days_until_expiry <= 0;
+                    if (expiryFilter === 'expiring-soon') return b.days_until_expiry > 0 && b.days_until_expiry <= 30;
+                    if (expiryFilter === 'normal') return b.days_until_expiry > 30;
+                    return true;
+                });
+            }
+            
+            const stockFilter = document.getElementById('stockFilter').value;
+            if (stockFilter !== 'all') {
+                filtered = filtered.filter(b => {
+                    if (stockFilter === 'low') return b.quantity_current > 0 && b.quantity_current < 10;
+                    if (stockFilter === 'out') return b.quantity_current === 0;
+                    if (stockFilter === 'normal') return b.quantity_current >= 10;
+                    return true;
+                });
+            }
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No batches found matching your criteria</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtered.map(batch => {
+                let expiryClass = '';
+                let expiryIcon = '';
+                let statusText = '';
+                
+                if (batch.days_until_expiry <= 0) {
+                    expiryClass = 'expiry-critical';
+                    expiryIcon = '<i class="fas fa-skull-crosswalk text-danger me-1"></i>';
+                    statusText = 'EXPIRED';
+                } else if (batch.days_until_expiry <= 30) {
+                    expiryClass = 'expiry-warning';
+                    expiryIcon = '<i class="fas fa-hourglass-half text-warning me-1"></i>';
+                    statusText = `${batch.days_until_expiry} days left`;
+                } else {
+                    expiryClass = 'expiry-normal';
+                    expiryIcon = '<i class="fas fa-check-circle text-success me-1"></i>';
+                    statusText = `${batch.days_until_expiry} days left`;
+                }
+                
+                const stockPercentage = (batch.quantity_current / batch.quantity_initial) * 100;
+                const stockColor = batch.quantity_current < 10 ? 'danger' : batch.quantity_current < 20 ? 'warning' : 'success';
+                
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card batch-card ${expiryClass} border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h6 class="fw-bold mb-1">${escapeHtml(batch.medicine_name)}</h6>
+                                        <small class="text-muted">Batch: ${escapeHtml(batch.batch_number)}</small>
+                                    </div>
+                                    <span class="badge bg-${stockColor}">${batch.quantity_current} units</span>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>Stock Level</span>
+                                        <span>${Math.round(stockPercentage)}%</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar bg-${stockColor}" style="width: ${stockPercentage}%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Purchase Price</small>
+                                        <strong>Rs. ${batch.purchase_price.toFixed(2)}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Selling Price</small>
+                                        <strong>Rs. ${batch.selling_price.toFixed(2)}</strong>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <small class="text-muted d-block">Expiry Status</small>
+                                    <div class="d-flex align-items-center">
+                                        ${expiryIcon}
+                                        <span class="ms-1 ${batch.days_until_expiry <= 0 ? 'text-danger fw-bold' : ''}">${statusText}</span>
+                                    </div>
+                                    <small class="text-muted">Expires: ${batch.expiry_date}</small>
+                                </div>
+                                
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-sm btn-outline-primary flex-grow-1" onclick="viewBatchDetails(${batch.batch_id})">
+                                        <i class="fas fa-info-circle me-1"></i> Details
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="adjustStock(${batch.medicine_id})">
+                                        <i class="fas fa-exchange-alt me-1"></i> Adjust
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterBatches() { displayBatches(); }
+        function resetFilters() {
+            document.getElementById('searchBatch').value = '';
+            document.getElementById('expiryFilter').value = 'all';
+            document.getElementById('stockFilter').value = 'all';
+            displayBatches();
+        }
+        function refreshBatches() { loadBatches(); }
+        function adjustStock(medicineId) { window.location.href = `/inventory?adjust=${medicineId}`; }
+
+        async function viewBatchDetails(batchId) {
+            const batch = allBatches.find(b => b.batch_id === batchId);
+            if (!batch) return;
+            
+            const modalContent = document.getElementById('batch-details-content');
+            modalContent.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Medicine Information</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Medicine:</strong></td><td>${escapeHtml(batch.medicine_name)}</td></tr>
+                            <tr><td><strong>Generic Name:</strong></td><td>${escapeHtml(batch.generic_name || 'N/A')}</td></tr>
+                            <tr><td><strong>Category:</strong></td><td>${escapeHtml(batch.category_name || 'N/A')}</td></tr>
+                            <tr><td><strong>Supplier:</strong></td><td>${escapeHtml(batch.supplier_name || 'N/A')}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Batch Information</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Batch Number:</strong></td><td>${escapeHtml(batch.batch_number)}</td></tr>
+                            <tr><td><strong>Manufacturing Date:</strong></td><td>${batch.manufacturing_date || 'N/A'}</td></tr>
+                            <tr><td><strong>Expiry Date:</strong></td><td class="${batch.days_until_expiry <= 0 ? 'text-danger fw-bold' : ''}">${batch.expiry_date}</td></tr>
+                            <tr><td><strong>Days Until Expiry:</strong></td><td>${batch.days_until_expiry > 0 ? batch.days_until_expiry : 'EXPIRED'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Stock Information</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Initial Stock:</strong></td><td>${batch.quantity_initial} units</td></tr>
+                            <tr><td><strong>Current Stock:</strong></td><td class="fw-bold text-${batch.quantity_current < 10 ? 'danger' : 'success'}">${batch.quantity_current} units</td></tr>
+                            <tr><td><strong>Stock Used:</strong></td><td>${batch.quantity_initial - batch.quantity_current} units</td></tr>
+                            <tr><td><strong>Stock Percentage:</strong></td><td>${Math.round((batch.quantity_current / batch.quantity_initial) * 100)}%</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Pricing Information</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Purchase Price:</strong></td><td>Rs. ${batch.purchase_price.toFixed(2)}</td></tr>
+                            <tr><td><strong>Selling Price:</strong></td><td>Rs. ${batch.selling_price.toFixed(2)}</td></tr>
+                            <tr><td><strong>Profit Margin:</strong></td><td class="text-success">${((batch.selling_price - batch.purchase_price) / batch.purchase_price * 100).toFixed(1)}%</td></tr>
+                            <tr><td><strong>Total Value:</strong></td><td>Rs. ${(batch.quantity_current * batch.selling_price).toFixed(2)}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+            new bootstrap.Modal(document.getElementById('batchModal')).show();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

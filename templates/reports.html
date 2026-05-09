@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Reports & Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .report-card {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .date-range-picker {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .report-table {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .summary-card h3 {
+            color: white;
+        }
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body onload="initializeReports()">
+
+<nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+
+<div id="main-content">
+    <div class="page-header">
+        <div>
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-chart-bar me-2 text-primary"></i>
+                Reports & Analytics
+            </h4>
+            <small class="text-muted">
+                <i class="fas fa-download me-1"></i> Export data in multiple formats
+                <i class="fas fa-chart-line ms-3 me-1"></i> Visual insights
+            </small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-outline-primary btn-sm" onclick="refreshReports()">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <span class="badge bg-primary rounded-pill px-3 py-2">
+                <i class="fas fa-user-shield me-1"></i> Admin Mode
+            </span>
+            <div class="user-badge">
+                <i class="fas fa-user-circle me-1"></i> Babiyashini
+            </div>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <!-- Report Type Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card report-card border-0 shadow-sm" onclick="showReport('stock')">
+                    <div class="card-body text-center">
+                        <i class="fas fa-boxes fa-3x text-primary mb-3"></i>
+                        <h6 class="fw-bold">Stock Report</h6>
+                        <small class="text-muted">Current inventory levels</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card report-card border-0 shadow-sm" onclick="showReport('sales')">
+                    <div class="card-body text-center">
+                        <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
+                        <h6 class="fw-bold">Sales Report</h6>
+                        <small class="text-muted">Revenue and transaction analysis</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card report-card border-0 shadow-sm" onclick="showReport('expiry')">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-times fa-3x text-warning mb-3"></i>
+                        <h6 class="fw-bold">Expiry Report</h6>
+                        <small class="text-muted">Near expiry and expired items</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card report-card border-0 shadow-sm" onclick="showReport('supplier')">
+                    <div class="card-body text-center">
+                        <i class="fas fa-truck fa-3x text-info mb-3"></i>
+                        <h6 class="fw-bold">Supplier Report</h6>
+                        <small class="text-muted">Supplier performance analysis</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Range Picker -->
+        <div class="date-range-picker">
+            <div class="row align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small">Date Range</label>
+                    <select id="dateRange" class="form-select" onchange="updateDateRange()">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="customDateStart" style="display:none;">
+                    <label class="form-label fw-bold small">From Date</label>
+                    <input type="date" id="startDate" class="form-control">
+                </div>
+                <div class="col-md-3" id="customDateEnd" style="display:none;">
+                    <label class="form-label fw-bold small">To Date</label>
+                    <input type="date" id="endDate" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100" onclick="applyDateRange()">
+                        <i class="fas fa-calendar-alt me-1"></i> Apply Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Content -->
+        <div id="report-content">
+            <div class="text-center py-5">
+                <i class="fas fa-chart-line fa-4x text-muted mb-3"></i>
+                <h5>Select a report type</h5>
+                <p class="text-muted">Click on any report card above to view detailed analytics</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentReport = null;
+    let salesChart = null;
+    let startDate = new Date();
+    let endDate = new Date();
+
+    function initializeReports() {
+        const today = new Date();
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = today;
+        document.getElementById('startDate').value = formatDate(startDate);
+        document.getElementById('endDate').value = formatDate(endDate);
+    }
+
+    function formatDate(date) {
+        return date.toISOString().split('T')[0];
+    }
+
+    function updateDateRange() {
+        const range = document.getElementById('dateRange').value;
+        const customStart = document.getElementById('customDateStart');
+        const customEnd = document.getElementById('customDateEnd');
+        
+        if (range === 'custom') {
+            customStart.style.display = 'block';
+            customEnd.style.display = 'block';
+        } else {
+            customStart.style.display = 'none';
+            customEnd.style.display = 'none';
+            
+            const today = new Date();
+            switch(range) {
+                case 'today':
+                    startDate = today;
+                    endDate = today;
+                    break;
+                case 'week':
+                    startDate = new Date(today.setDate(today.getDate() - 7));
+                    endDate = new Date();
+                    break;
+                case 'month':
+                    startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    endDate = new Date();
+                    break;
+                case 'quarter':
+                    const quarter = Math.floor(today.getMonth() / 3);
+                    startDate = new Date(today.getFullYear(), quarter * 3, 1);
+                    endDate = new Date();
+                    break;
+                case 'year':
+                    startDate = new Date(today.getFullYear(), 0, 1);
+                    endDate = new Date();
+                    break;
+            }
+            document.getElementById('startDate').value = formatDate(startDate);
+            document.getElementById('endDate').value = formatDate(endDate);
+        }
+    }
+
+    function applyDateRange() {
+        if (document.getElementById('dateRange').value === 'custom') {
+            startDate = new Date(document.getElementById('startDate').value);
+            endDate = new Date(document.getElementById('endDate').value);
+        }
+        if (currentReport) {
+            showReport(currentReport);
+        }
+    }
+
+    function refreshReports() {
+        if (currentReport) {
+            showReport(currentReport);
+        }
+    }
+
+    function showReport(type) {
+        currentReport = type;
+        if (type === 'stock') {
+            loadStockReport();
+        } else if (type === 'sales') {
+            loadSalesReport();
+        } else if (type === 'expiry') {
+            loadExpiryReport();
+        } else if (type === 'supplier') {
+            loadSupplierReport();
+        }
+    }
+
+    async function loadStockReport() {
+        const container = document.getElementById('report-content');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Loading stock report...</p></div>';
+        
+        try {
+            const response = await fetch('/get-medicines');
+            const medicines = await response.json();
+            
+            const totalStock = medicines.reduce((sum, m) => sum + m.quantity, 0);
+            const totalValue = medicines.reduce((sum, m) => sum + (m.quantity * m.price), 0);
+            const lowStock = medicines.filter(m => m.quantity < 10).length;
+            
+            let html = `
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3"><div class="card stat-card border-0 shadow-sm"><div class="card-body"><small>Total Items</small><h3 class="fw-bold mt-2">${medicines.length}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card stat-card border-0 shadow-sm"><div class="card-body"><small>Total Units</small><h3 class="fw-bold mt-2">${totalStock}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card stat-card border-0 shadow-sm"><div class="card-body"><small>Low Stock</small><h3 class="fw-bold mt-2 text-warning">${lowStock}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card stat-card border-0 shadow-sm"><div class="card-body"><small>Total Value</small><h3 class="fw-bold mt-2">Rs. ${totalValue.toLocaleString()}</h3></div></div></div>
+                </div>
+                <div class="card border-0 shadow-sm"><div class="card-header bg-white py-3 d-flex justify-content-between"><h6 class="fw-bold mb-0">Stock Report Details</h6><div><button class="btn btn-sm btn-success me-2" onclick="exportToExcel('stock')">Excel</button><button class="btn btn-sm btn-danger" onclick="exportToPDF('stock')">PDF</button></div></div>
+                <div class="card-body p-0"><div class="report-table"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>Medicine</th><th>Category</th><th>Stock</th><th>Price</th><th>Total Value</th><th>Status</th></tr></thead><tbody>
+                ${medicines.map(m => { const tv = m.quantity * m.price; let status = 'Normal', cls = 'success'; if (m.quantity === 0) { status = 'Out of Stock'; cls = 'danger'; } else if (m.quantity < 10) { status = 'Low Stock'; cls = 'warning'; } return `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>${escapeHtml(m.category || 'N/A')}</td><td class="fw-bold text-${cls}">${m.quantity}</td><td>Rs. ${parseFloat(m.price).toFixed(2)}</td><td>Rs. ${tv.toFixed(2)}</td><td><span class="badge bg-${cls}">${status}</span></td>`; }).join('')}
+                </tbody><tfoot><tr class="fw-bold"><td colspan="4">TOTAL VALUE</td><td colspan="2">Rs. ${totalValue.toFixed(2)}</td></tr></tfoot></table></div></div></div>`;
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+
+    async function loadSalesReport() {
+        const container = document.getElementById('report-content');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Loading sales report...</p></div>';
+        
+        try {
+            const response = await fetch('/get-sales');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            let sales = await response.json();
+            
+            if (!Array.isArray(sales)) {
+                console.error("Sales is not an array:", sales);
+                sales = [];
+            }
+            
+            if (Array.isArray(sales) && sales.length > 0) {
+                sales = sales.filter(s => {
+                    const saleDate = new Date(s.sale_date);
+                    return saleDate >= startDate && saleDate <= endDate;
+                });
+            }
+            
+            const totalTransactions = sales.length;
+            const totalRevenue = Array.isArray(sales) ? sales.reduce((sum, s) => sum + parseFloat(s.final_price || s.sale_price || 0), 0) : 0;
+            const totalItems = Array.isArray(sales) ? sales.reduce((sum, s) => sum + (s.quantity_sold || 0), 0) : 0;
+            const avgTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+            
+            const salesByDate = {};
+            if (Array.isArray(sales)) {
+                sales.forEach(s => {
+                    const date = s.sale_date ? s.sale_date.split(' ')[0] : '';
+                    if (date) {
+                        salesByDate[date] = (salesByDate[date] || 0) + parseFloat(s.final_price || s.sale_price || 0);
+                    }
+                });
+            }
+            
+            const chartLabels = Object.keys(salesByDate).slice(-30);
+            const chartValues = Object.values(salesByDate).slice(-30);
+            
+            let html = `
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3"><div class="card summary-card"><div class="card-body"><small>Transactions</small><h3 class="fw-bold mt-2">${totalTransactions}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card summary-card" style="background: linear-gradient(135deg,#28a745,#20c997);"><div class="card-body"><small>Revenue</small><h3 class="fw-bold mt-2">Rs. ${totalRevenue.toFixed(2)}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card summary-card" style="background: linear-gradient(135deg,#17a2b8,#138496);"><div class="card-body"><small>Items Sold</small><h3 class="fw-bold mt-2">${totalItems}</h3></div></div></div>
+                    <div class="col-md-3"><div class="card summary-card" style="background: linear-gradient(135deg,#ffc107,#e0a800);"><div class="card-body"><small>Avg Transaction</small><h3 class="fw-bold mt-2">Rs. ${avgTransaction.toFixed(2)}</h3></div></div></div>
+                </div>
+                <div class="card border-0 shadow-sm mb-4"><div class="card-header bg-white py-3"><h6 class="fw-bold mb-0">Sales Trend</h6></div><div class="card-body"><canvas id="salesTrendChart" height="200"></canvas></div></div>
+                <div class="card border-0 shadow-sm"><div class="card-header bg-white py-3 d-flex justify-content-between"><h6 class="fw-bold mb-0">Transaction Details</h6><div><button class="btn btn-sm btn-success me-2" onclick="exportToExcel('sales')">Excel</button><button class="btn btn-sm btn-danger" onclick="exportToPDF('sales')">PDF</button></div></div>
+                <div class="card-body p-0"><div class="report-table"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>Invoice</th><th>Medicine</th><th>Qty</th><th>Total</th><th>Payment</th><th>Customer</th><th>Date</th></tr></thead><tbody>
+                ${Array.isArray(sales) && sales.length > 0 ? sales.map(s => `<tr><td><small>${s.invoice_number || 'N/A'}</small></td><td><strong>${escapeHtml(s.medicine_name || 'N/A')}</strong></td><td>${s.quantity_sold || 0}</td><td class="text-success">Rs. ${parseFloat(s.final_price || s.sale_price || 0).toFixed(2)}</td><td><span class="badge bg-secondary">${s.payment_method || 'Cash'}</span></td><td>${escapeHtml(s.customer_name || 'Walk-in')}</td><td><small>${s.sale_date || ''}</small></td>`).join('') : '<tr><td colspan="7" class="text-center py-5">No sales found</td></tr>'}
+                </tbody></table></div></div></div>`;
+            container.innerHTML = html;
+            
+            if (chartLabels.length > 0) {
+                const ctx = document.getElementById('salesTrendChart').getContext('2d');
+                if (salesChart) salesChart.destroy();
+                salesChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: chartLabels, datasets: [{ label: 'Sales Revenue (Rs.)', data: chartValues, borderColor: '#28a745', backgroundColor: 'rgba(40,167,69,0.1)', tension: 0.4, fill: true }] },
+                    options: { responsive: true, maintainAspectRatio: true }
+                });
+            }
+        } catch (error) {
+            console.error("Sales report error:", error);
+            container.innerHTML = `<div class="alert alert-danger">Error loading sales report: ${error.message}</div>`;
+        }
+    }
+
+    async function loadExpiryReport() {
+        const container = document.getElementById('report-content');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Loading expiry report...</p></div>';
+        
+        try {
+            const response = await fetch('/get-medicines');
+            const medicines = await response.json();
+            const today = new Date();
+            const medicinesWithExpiry = medicines.map(m => {
+                let days = null, status = 'No Expiry';
+                if (m.expiry_date) {
+                    const expiry = new Date(m.expiry_date);
+                    days = Math.ceil((expiry - today) / (86400000));
+                    status = days < 0 ? 'Expired' : days <= 30 ? 'Expiring Soon' : 'Valid';
+                }
+                return { ...m, days, status };
+            });
+            const expired = medicinesWithExpiry.filter(m => m.status === 'Expired').length;
+            const expiringSoon = medicinesWithExpiry.filter(m => m.status === 'Expiring Soon').length;
+            
+            let html = `
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4"><div class="card bg-danger text-white"><div class="card-body"><small>Expired</small><h3 class="fw-bold mt-2">${expired}</h3></div></div></div>
+                    <div class="col-md-4"><div class="card bg-warning text-dark"><div class="card-body"><small>Expiring Soon</small><h3 class="fw-bold mt-2">${expiringSoon}</h3></div></div></div>
+                    <div class="col-md-4"><div class="card bg-success text-white"><div class="card-body"><small>Valid</small><h3 class="fw-bold mt-2">${medicines.length - expired - expiringSoon}</h3></div></div></div>
+                </div>
+                <div class="card border-0 shadow-sm"><div class="card-header bg-white py-3 d-flex justify-content-between"><h6 class="fw-bold mb-0">Expiry Tracking Report</h6><div><button class="btn btn-sm btn-success me-2" onclick="exportToExcel('expiry')">Excel</button><button class="btn btn-sm btn-danger" onclick="exportToPDF('expiry')">PDF</button></div></div>
+                <div class="card-body p-0"><div class="report-table"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>Medicine</th><th>Expiry Date</th><th>Days Left</th><th>Status</th><th>Action</th></tr></thead><tbody>
+                ${medicinesWithExpiry.map(m => { let cls = m.status === 'Expired' ? 'danger' : m.status === 'Expiring Soon' ? 'warning' : 'success'; return `<tr class="${m.status === 'Expired' ? 'table-danger' : m.status === 'Expiring Soon' ? 'table-warning' : ''}"><td><strong>${escapeHtml(m.name)}</strong></td><td>${m.expiry_date || 'N/A'}</td><td class="fw-bold text-${cls}">${m.days !== null ? m.days : 'N/A'}</td><td><span class="badge bg-${cls}">${m.status}</span></td><td><button class="btn btn-sm btn-${cls}" onclick="window.location.href='/sales'">${m.status === 'Expired' ? 'Remove' : 'Sell'}</button></td></tr>`; }).join('')}
+                </tbody></table></div></div></div>`;
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+
+    async function loadSupplierReport() {
+        const container = document.getElementById('report-content');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Loading supplier report...</p></div>';
+        
+        try {
+            const [suppliersRes, medicinesRes] = await Promise.all([fetch('/get-suppliers'), fetch('/get-medicines')]);
+            const suppliers = await suppliersRes.json();
+            const medicines = await medicinesRes.json();
+            
+            const supplierStats = suppliers.map(s => {
+                const supplierMedicines = medicines.filter(m => m.supplier === s.name);
+                return { ...s, medicineCount: supplierMedicines.length, totalStock: supplierMedicines.reduce((sum, m) => sum + m.quantity, 0), totalValue: supplierMedicines.reduce((sum, m) => sum + (m.quantity * m.price), 0) };
+            });
+            
+            let html = `
+                <div class="card border-0 shadow-sm"><div class="card-header bg-white py-3 d-flex justify-content-between"><h6 class="fw-bold mb-0">Supplier Performance Report</h6><div><button class="btn btn-sm btn-success me-2" onclick="exportToExcel('supplier')">Excel</button><button class="btn btn-sm btn-danger" onclick="exportToPDF('supplier')">PDF</button></div></div>
+                <div class="card-body p-0"><div class="report-table"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>Supplier</th><th>Contact</th><th>Phone</th><th>Products</th><th>Total Stock</th><th>Total Value</th></tr></thead><tbody>
+                ${supplierStats.map(s => `<tr><td><strong>${escapeHtml(s.name)}</strong></td><td>${escapeHtml(s.contact_person || 'N/A')}</td><td>${escapeHtml(s.phone || 'N/A')}</td><td><span class="badge bg-primary">${s.medicineCount}</span></td><td>${s.totalStock} units</td><td class="text-success">Rs. ${s.totalValue.toFixed(2)}</td>`).join('')}
+                ${supplierStats.length === 0 ? '<tr><td colspan="6" class="text-center py-5">No suppliers found</td></tr>' : ''}
+                </tbody></table></div></div></div>`;
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+
+    function exportToExcel(reportType) {
+        const table = document.querySelector('#report-content table');
+        if (!table) { alert('No data to export'); return; }
+        const html = `<html><head><title>${reportType.toUpperCase()} Report</title></head><body><h2>Pharmacy OS - ${reportType.toUpperCase()} Report</h2><p>Generated: ${new Date().toLocaleString()}</p>${table.outerHTML}</body></html>`;
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${reportType}_report_${new Date().toISOString().split('T')[0]}.xls`;
+        link.click();
+        URL.revokeObjectURL(blob);
+        showToast('success', 'Report exported successfully!');
+    }
+
+    function exportToPDF(reportType) {
+        const content = document.querySelector('#report-content');
+        if (!content) { alert('No data to export'); return; }
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        printWindow.document.write(`<!DOCTYPE html><html><head><title>${reportType.toUpperCase()} Report</title><style>body{font-family:Arial;margin:40px}.header{text-align:center;border-bottom:2px solid #333}.date{text-align:right;color:#666}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f2f2f2}</style></head><body><div class="header"><h1>PHARMACY OS</h1><h2>${reportType.toUpperCase()} Report</h2></div><div class="date">Generated: ${new Date().toLocaleString()}</div>${content.innerHTML}<div class="footer"><p>System-generated report</p></div><script>window.onload=function(){window.print();setTimeout(function(){window.close();},500)};<\/script></body></html>`);
+        printWindow.document.close();
+    }
+
+    function showToast(type, message) {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show toast-notification`;
+        toast.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'} me-2"></i>${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Purchase Orders</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-Draft { background: #6c757d; color: white; }
+        .status-Sent { background: #17a2b8; color: white; }
+        .status-Confirmed { background: #28a745; color: white; }
+        .status-Received { background: #007bff; color: white; }
+        .status-Cancelled { background: #dc3545; color: white; }
+        
+        .po-card {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .po-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .cart-item-row {
+            transition: all 0.2s;
+        }
+        .cart-item-row:hover {
+            background-color: #f8f9fa;
+        }
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .filter-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body onload="loadPurchaseOrders()">
+
+<nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+<div id="main-content">
+    <div class="page-header">
+        <div>
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-file-invoice me-2 text-primary"></i>
+                Purchase Orders
+            </h4>
+            <small class="text-muted">
+                <i class="fas fa-plus-circle me-1"></i> Create and manage supplier orders
+            </small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-primary btn-sm" onclick="showCreatePOModal()">
+                <i class="fas fa-plus me-1"></i> New Purchase Order
+            </button>
+            <button class="btn btn-outline-primary btn-sm" onclick="loadPurchaseOrders()">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <span class="badge bg-primary rounded-pill px-3 py-2">
+                <i class="fas fa-user-shield me-1"></i> {{ session['role'] }} Mode
+            </span>
+            <div class="user-badge">
+                <i class="fas fa-user-circle me-1"></i> {{ session['username'] }}
+            </div>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <!-- Statistics Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <small class="text-muted">Total Orders</small>
+                        <h3 class="fw-bold mt-2 mb-0" id="total-orders">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <small class="text-muted">Pending Orders</small>
+                        <h3 class="fw-bold mt-2 mb-0 text-warning" id="pending-orders">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <small class="text-muted">Received Orders</small>
+                        <h3 class="fw-bold mt-2 mb-0 text-success" id="received-orders">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <small class="text-muted">Total Value</small>
+                        <h3 class="fw-bold mt-2 mb-0 text-primary" id="total-value">Rs. 0</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <select id="statusFilter" class="form-select" onchange="filterOrders()">
+                        <option value="all">All Status</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Sent">Sent</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Received">Received</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="date" id="startDate" class="form-control" placeholder="Start Date">
+                </div>
+                <div class="col-md-3">
+                    <input type="date" id="endDate" class="form-control" placeholder="End Date">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100" onclick="applyFilters()">
+                        <i class="fas fa-filter me-1"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Purchase Orders List -->
+        <div class="row g-4" id="po-container">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2">Loading purchase orders...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Purchase Order Modal -->
+<div class="modal fade" id="createPOModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle me-2"></i>Create Purchase Order
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Supplier *</label>
+                        <select id="po-supplier" class="form-select" required>
+                            <option value="">Select Supplier...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Expected Delivery</label>
+                        <input type="date" id="po-expected-date" class="form-control">
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Notes</label>
+                        <textarea id="po-notes" class="form-control" rows="2" placeholder="Additional notes..."></textarea>
+                    </div>
+                </div>
+                
+                <hr>
+                <h6 class="fw-bold mb-3">Order Items</h6>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Medicine</th>
+                                <th width="100">Quantity</th>
+                                <th width="120">Unit Price</th>
+                                <th width="100">Total</th>
+                                <th width="40"></th>
+                            </thead>
+                            <tbody id="po-items-body">
+                                <tr><td colspan="5" class="text-center text-muted">No items added</td></tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold">GRAND TOTAL:</td>
+                                    <td class="fw-bold text-primary">Rs. <span id="po-grand-total">0.00</span></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="input-group">
+                            <select id="add-medicine-select" class="form-select">
+                                <option value="">Select Medicine to Add...</option>
+                            </select>
+                            <input type="number" id="add-medicine-qty" class="form-control" placeholder="Qty" style="width: 80px;" min="1" value="1">
+                            <input type="number" id="add-medicine-price" class="form-control" placeholder="Price" style="width: 100px;" step="0.01">
+                            <button class="btn btn-primary" onclick="addItemToPO()">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createPurchaseOrder()">Create Order</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View PO Details Modal -->
+<div class="modal fade" id="viewPOModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>Purchase Order Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="po-details-content">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="update-status-btn" onclick="updatePOStatus()">Update Status</button>
+                <button type="button" class="btn btn-success" id="receive-stock-btn" onclick="receiveStock()" style="display:none;">Receive Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let poItems = [];
+    let currentPO = null;
+    let allMedicines = [];
+    let allOrders = [];
+
+    async function loadPurchaseOrders() {
+        const container = document.getElementById('po-container');
+        container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Loading purchase orders...</p></div>';
+        
+        try {
+            const response = await fetch('/get-purchase-orders');
+            allOrders = await response.json();
+            
+            updateStatistics();
+            displayOrders(allOrders);
+        } catch (error) {
+            console.error('Error:', error);
+            container.innerHTML = `<div class="col-12 text-center py-5 text-danger">Error loading purchase orders</div>`;
+        }
+    }
+
+    function updateStatistics() {
+        const total = allOrders.length;
+        const pending = allOrders.filter(o => o.status !== 'Received' && o.status !== 'Cancelled').length;
+        const received = allOrders.filter(o => o.status === 'Received').length;
+        const totalValue = allOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+        
+        document.getElementById('total-orders').innerText = total;
+        document.getElementById('pending-orders').innerText = pending;
+        document.getElementById('received-orders').innerText = received;
+        document.getElementById('total-value').innerHTML = `Rs. ${totalValue.toLocaleString()}`;
+    }
+
+    function displayOrders(orders) {
+        const container = document.getElementById('po-container');
+        
+        if (orders.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="fas fa-file-invoice fa-4x text-muted mb-3"></i>
+                    <h5>No Purchase Orders</h5>
+                    <p class="text-muted">Click "New Purchase Order" to create one</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = orders.map(order => `
+            <div class="col-md-6 col-lg-4">
+                <div class="card po-card border-0 shadow-sm h-100" onclick="viewPurchaseOrder(${order.po_id})">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="fw-bold mb-1">${order.po_number}</h6>
+                                <small class="text-muted">${order.supplier_name || 'Unknown Supplier'}</small>
+                            </div>
+                            <span class="status-badge status-${order.status}">${order.status}</span>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">Order Date:</small>
+                            <div class="fw-bold">${order.order_date || 'N/A'}</div>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">Expected Delivery:</small>
+                            <div>${order.expected_delivery || 'Not set'}</div>
+                        </div>
+                        <div class="mt-3">
+                            <span class="badge bg-primary">Total: Rs. ${parseFloat(order.total_amount).toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function filterOrders() {
+        const status = document.getElementById('statusFilter').value;
+        let filtered = [...allOrders];
+        
+        if (status !== 'all') {
+            filtered = filtered.filter(o => o.status === status);
+        }
+        
+        displayOrders(filtered);
+    }
+
+    function applyFilters() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const status = document.getElementById('statusFilter').value;
+        
+        let filtered = [...allOrders];
+        
+        if (status !== 'all') {
+            filtered = filtered.filter(o => o.status === status);
+        }
+        
+        if (startDate) {
+            filtered = filtered.filter(o => o.order_date && o.order_date >= startDate);
+        }
+        if (endDate) {
+            filtered = filtered.filter(o => o.order_date && o.order_date <= endDate);
+        }
+        
+        displayOrders(filtered);
+    }
+
+    async function showCreatePOModal() {
+        poItems = [];
+        updatePOItemsTable();
+        
+        // Load suppliers
+        const supplierRes = await fetch('/get-suppliers');
+        const suppliers = await supplierRes.json();
+        const supplierSelect = document.getElementById('po-supplier');
+        supplierSelect.innerHTML = '<option value="">Select Supplier...</option>' + 
+            suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        
+        // Load medicines
+        const medicinesRes = await fetch('/get-medicines');
+        allMedicines = await medicinesRes.json();
+        const medicineSelect = document.getElementById('add-medicine-select');
+        medicineSelect.innerHTML = '<option value="">Select Medicine...</option>' + 
+            allMedicines.map(m => `<option value="${m.id}" data-price="${m.price}">${m.name} (Rs. ${m.price})</option>`).join('');
+        
+        document.getElementById('po-expected-date').value = '';
+        document.getElementById('po-notes').value = '';
+        document.getElementById('po-grand-total').innerText = '0.00';
+        
+        new bootstrap.Modal(document.getElementById('createPOModal')).show();
+    }
+
+    function addItemToPO() {
+        const medicineSelect = document.getElementById('add-medicine-select');
+        const medicineId = medicineSelect.value;
+        const medicineName = medicineSelect.options[medicineSelect.selectedIndex]?.text.split(' (')[0];
+        const quantity = parseInt(document.getElementById('add-medicine-qty').value);
+        const unitPrice = parseFloat(document.getElementById('add-medicine-price').value);
+        
+        if (!medicineId || !quantity || !unitPrice) {
+            showToast('error', 'Please select medicine and enter quantity & price');
+            return;
+        }
+        
+        const existing = poItems.find(item => item.medicine_id == medicineId);
+        if (existing) {
+            existing.quantity += quantity;
+            existing.total = existing.quantity * existing.unit_price;
+        } else {
+            poItems.push({
+                medicine_id: parseInt(medicineId),
+                medicine_name: medicineName,
+                quantity: quantity,
+                unit_price: unitPrice,
+                total: quantity * unitPrice
+            });
+        }
+        
+        updatePOItemsTable();
+        document.getElementById('add-medicine-select').value = '';
+        document.getElementById('add-medicine-qty').value = '1';
+        document.getElementById('add-medicine-price').value = '';
+        showToast('success', 'Item added to order');
+    }
+
+    function updatePOItemsTable() {
+        const tbody = document.getElementById('po-items-body');
+        let grandTotal = 0;
+        
+        if (poItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No items added</td></tr>';
+            document.getElementById('po-grand-total').innerText = '0.00';
+            return;
+        }
+        
+        tbody.innerHTML = poItems.map((item, index) => {
+            grandTotal += item.total;
+            return `
+                <tr class="cart-item-row">
+                    <td><strong>${escapeHtml(item.medicine_name)}</strong></td>
+                    <td>${item.quantity}</td>
+                    <td>Rs. ${item.unit_price.toFixed(2)}</td>
+                    <td class="fw-bold">Rs. ${item.total.toFixed(2)}</td>
+                    <td><i class="fas fa-trash-alt text-danger" onclick="removePOItem(${index})" style="cursor: pointer;"></i></td>
+                </tr>
+            `;
+        }).join('');
+        
+        document.getElementById('po-grand-total').innerText = grandTotal.toFixed(2);
+    }
+
+    function removePOItem(index) {
+        poItems.splice(index, 1);
+        updatePOItemsTable();
+    }
+
+    async function createPurchaseOrder() {
+        const supplierId = document.getElementById('po-supplier').value;
+        const expectedDelivery = document.getElementById('po-expected-date').value;
+        const notes = document.getElementById('po-notes').value;
+        
+        if (!supplierId) {
+            showToast('error', 'Please select a supplier');
+            return;
+        }
+        
+        if (poItems.length === 0) {
+            showToast('error', 'Please add at least one item');
+            return;
+        }
+        
+        const data = {
+            supplier_id: parseInt(supplierId),
+            expected_delivery: expectedDelivery || null,
+            notes: notes,
+            items: poItems.map(item => ({
+                medicine_id: item.medicine_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price
+            }))
+        };
+        
+        try {
+            const response = await fetch('/create-purchase-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                showToast('success', 'Purchase order created successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('createPOModal')).hide();
+                loadPurchaseOrders();
+            } else {
+                const error = await response.json();
+                showToast('error', error.error || 'Failed to create order');
+            }
+        } catch (error) {
+            showToast('error', 'Server error');
+        }
+    }
+
+    async function viewPurchaseOrder(poId) {
+        currentPO = allOrders.find(o => o.po_id === poId);
+        
+        if (!currentPO) return;
+        
+        try {
+            const itemsResponse = await fetch(`/get-po-items/${poId}`);
+            const items = await itemsResponse.json();
+            
+            const modalContent = document.getElementById('po-details-content');
+            modalContent.innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>PO Number:</strong> ${currentPO.po_number}<br>
+                        <strong>Supplier:</strong> ${currentPO.supplier_name || 'N/A'}<br>
+                        <strong>Order Date:</strong> ${currentPO.order_date || 'N/A'}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Status:</strong> 
+                        <span class="status-badge status-${currentPO.status}">${currentPO.status}</span><br>
+                        <strong>Expected Delivery:</strong> ${currentPO.expected_delivery || 'Not set'}<br>
+                        <strong>Total Amount:</strong> Rs. ${parseFloat(currentPO.total_amount).toLocaleString()}
+                    </div>
+                </div>
+                <hr>
+                <h6 class="fw-bold">Order Items</h6>
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr><th>Medicine</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(item => `
+                            <tr>
+                                <td>${escapeHtml(item.medicine_name)}</td>
+                                <td>${item.quantity_ordered}</td>
+                                <td>Rs. ${parseFloat(item.unit_price).toFixed(2)}</td>
+                                <td>Rs. ${parseFloat(item.total_price).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${currentPO.notes ? `<hr><strong>Notes:</strong><br>${escapeHtml(currentPO.notes)}` : ''}
+            `;
+            
+            const statusBtn = document.getElementById('update-status-btn');
+            const receiveBtn = document.getElementById('receive-stock-btn');
+            
+            if (currentPO.status === 'Received' || currentPO.status === 'Cancelled') {
+                statusBtn.style.display = 'none';
+                receiveBtn.style.display = 'none';
+            } else if (currentPO.status === 'Confirmed') {
+                statusBtn.style.display = 'inline-block';
+                receiveBtn.style.display = 'inline-block';
+            } else {
+                statusBtn.style.display = 'inline-block';
+                receiveBtn.style.display = 'none';
+            }
+            
+            new bootstrap.Modal(document.getElementById('viewPOModal')).show();
+        } catch (error) {
+            showToast('error', 'Error loading PO details');
+        }
+    }
+
+    async function updatePOStatus() {
+        const statuses = ['Draft', 'Sent', 'Confirmed', 'Received', 'Cancelled'];
+        const currentIndex = statuses.indexOf(currentPO.status);
+        const nextStatus = statuses[currentIndex + 1];
+        
+        if (!nextStatus) {
+            showToast('info', 'PO is already in final state');
+            return;
+        }
+        
+        if (confirm(`Change status from ${currentPO.status} to ${nextStatus}?`)) {
+            try {
+                const response = await fetch(`/update-po-status/${currentPO.po_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: nextStatus })
+                });
+                
+                if (response.ok) {
+                    showToast('success', `Status updated to ${nextStatus}`);
+                    bootstrap.Modal.getInstance(document.getElementById('viewPOModal')).hide();
+                    loadPurchaseOrders();
+                } else {
+                    showToast('error', 'Failed to update status');
+                }
+            } catch (error) {
+                showToast('error', 'Server error');
+            }
+        }
+    }
+
+    async function receiveStock() {
+        if (confirm(`Receive all items from PO ${currentPO.po_number}? This will update your inventory.`)) {
+            try {
+                const response = await fetch(`/receive-purchase-order/${currentPO.po_id}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    showToast('success', 'Stock received and inventory updated!');
+                    bootstrap.Modal.getInstance(document.getElementById('viewPOModal')).hide();
+                    loadPurchaseOrders();
+                } else {
+                    const error = await response.json();
+                    showToast('error', error.error || 'Failed to receive stock');
+                }
+            } catch (error) {
+                showToast('error', 'Server error');
+            }
+        }
+    }
+
+    function showToast(type, message) {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show toast-notification`;
+        toast.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'} me-2"></i>${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - Point of Sale</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .search-result-item {
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+        .search-result-item:hover {
+            background-color: #e3f2fd;
+            border-left-color: #3498db;
+            transform: translateX(5px);
+        }
+        .cart-item-row {
+            transition: all 0.2s;
+        }
+        .cart-item-row:hover {
+            background-color: #f8f9fa;
+        }
+        .payment-method-btn {
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+        }
+        .payment-method-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .payment-method-btn.active {
+            border-color: #3498db;
+            background: linear-gradient(135deg, #3498db20, #2980b920);
+        }
+        .quantity-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .quantity-btn {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border-radius: 6px;
+        }
+        .cart-total-card {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+<nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+<div id="main-content">
+    <div class="page-header">
+        <div>
+            <h4 class="fw-bold mb-0">
+                <i class="fas fa-cash-register me-2 text-primary"></i>
+                Point of Sale System
+            </h4>
+            <small class="text-muted">
+                <i class="fas fa-sync-alt me-1"></i> Real-time inventory sync
+                <i class="fas fa-chart-line ms-3 me-1"></i> Smart ML predictions
+            </small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge bg-primary rounded-pill px-3 py-2">
+                <i class="fas fa-user-shield me-1"></i> Admin Mode
+            </span>
+            <div class="user-badge">
+                <i class="fas fa-user-circle me-1"></i> Babiyashini
+            </div>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <div class="row g-4">
+            <!-- Left Column - Product Selection -->
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h6 class="fw-bold mb-0">
+                            <i class="fas fa-search me-2 text-primary"></i>
+                            Add Products to Cart
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4 position-relative">
+                            <label class="form-label fw-bold small text-uppercase">
+                                <i class="fas fa-pills me-1"></i> Search Medicine
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0">
+                                    <i class="fas fa-search text-muted"></i>
+                                </span>
+                                <input type="text" id="searchItem" class="form-control border-start-0 ps-0" 
+                                       placeholder="Type medicine name to search..." 
+                                       onkeyup="searchForSale()" autocomplete="off">
+                            </div>
+                            <div id="search-results" class="list-group mt-2 shadow-lg position-absolute w-100" 
+                                 style="z-index: 1000; display: none; max-height: 350px; overflow-y: auto;"></div>
+                        </div>
+
+                        <div id="selected-item-info" class="bg-light rounded-3 p-3 mb-3" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-0" id="display-name">---</h6>
+                                    <small class="text-muted" id="display-expiry"></small>
+                                </div>
+                                <span class="badge bg-primary" id="display-stock">Stock: 0</span>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Unit Price</small>
+                                    <h5 class="fw-bold text-primary mb-0">Rs. <span id="display-unit-price">0.00</span></h5>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <small class="text-muted d-block">Subtotal</small>
+                                    <h5 class="fw-bold mb-0">Rs. <span id="item-total">0.00</span></h5>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" onclick="decrementQty()">-</button>
+                                <input type="number" id="sale-qty" class="form-control text-center" value="1" min="1" 
+                                       oninput="calculateItemTotal()" style="max-width: 80px;">
+                                <button class="btn btn-outline-secondary" onclick="incrementQty()">+</button>
+                                <button class="btn btn-primary flex-grow-1" onclick="addToCart()">
+                                    <i class="fas fa-cart-plus me-2"></i> Add to Cart
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 pt-2 border-top">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <small class="text-muted">Today's Sales</small>
+                                    <h6 class="fw-bold mb-0" id="today-sales">0</h6>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Cart Items</small>
+                                    <h6 class="fw-bold mb-0" id="cart-count-badge">0</h6>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Total Value</small>
+                                    <h6 class="fw-bold mb-0 text-success" id="cart-value-badge">Rs.0</h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Cart & Checkout -->
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0">
+                            <i class="fas fa-shopping-cart me-2 text-primary"></i>
+                            Shopping Cart
+                            <span id="cart-count" class="badge bg-secondary ms-2">0</span>
+                        </h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div style="max-height: 350px; overflow-y: auto;">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Medicine</th>
+                                        <th width="120">Quantity</th>
+                                        <th width="100">Price</th>
+                                        <th width="100">Total</th>
+                                        <th width="40"></th>
+                                    </thead>
+                                    <tbody id="cart-items">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-5">
+                                                <i class="fas fa-shopping-cart fa-3x mb-3 d-block"></i>
+                                                Cart is empty<br>
+                                                <small>Search and add medicines to start billing</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label class="form-label fw-bold small text-uppercase">
+                                        <i class="fas fa-credit-card me-1"></i> Payment Method
+                                    </label>
+                                    <div class="row g-2">
+                                        <div class="col-4">
+                                            <div class="payment-method-btn active" onclick="selectPaymentMethod('cash')" id="method-cash">
+                                                <i class="fas fa-money-bill-wave fa-2x"></i>
+                                                <div class="small mt-1">Cash</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="payment-method-btn" onclick="selectPaymentMethod('card')" id="method-card">
+                                                <i class="fas fa-credit-card fa-2x"></i>
+                                                <div class="small mt-1">Card</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="payment-method-btn" onclick="selectPaymentMethod('online')" id="method-online">
+                                                <i class="fas fa-mobile-alt fa-2x"></i>
+                                                <div class="small mt-1">Online</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="cart-total-card">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <small>Subtotal</small>
+                                            <strong>Rs. <span id="subtotal">0.00</span></strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <small>Discount</small>
+                                            <div>
+                                                <select id="discount-select" class="form-select form-select-sm bg-white text-dark" 
+                                                        onchange="applyDiscountFromSelect()" style="width: auto; display: inline-block;">
+                                                    <option value="0">0%</option>
+                                                    <option value="5">5%</option>
+                                                    <option value="10">10%</option>
+                                                    <option value="15">15%</option>
+                                                    <option value="20">20%</option>
+                                                </select>
+                                                <span class="ms-2">- Rs. <span id="discount-amount">0.00</span></span>
+                                            </div>
+                                        </div>
+                                        <hr class="my-2 bg-white">
+                                        <div class="d-flex justify-content-between align-items-end">
+                                            <div>
+                                                <small>Total Amount</small>
+                                                <h3 class="fw-bold mb-0">Rs. <span id="total-amount">0.00</span></h3>
+                                            </div>
+                                            <button class="btn btn-light btn-sm" onclick="clearCart()">
+                                                <i class="fas fa-trash-alt me-1"></i> Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <input type="text" id="customer-name" class="form-control" placeholder="Customer Name (Optional)">
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="text" id="customer-phone" class="form-control" placeholder="Phone Number (Optional)">
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-success w-100 py-3 fw-bold" onclick="completeTransaction()" id="checkout-btn">
+                                        <i class="fas fa-check-circle me-2"></i> COMPLETE TRANSACTION
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-info w-100 py-3 fw-bold" onclick="printLastReceipt()" id="print-btn" style="display: none;">
+                                        <i class="fas fa-print me-2"></i> PRINT RECEIPT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let cart = [];
+    let currentDiscount = 0;
+    let currentPaymentMethod = 'cash';
+    let selectedMedicine = null;
+    let lastTransaction = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTodayStats();
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                completeTransaction();
+            }
+        });
+    });
+
+    async function searchForSale() {
+        const query = document.getElementById('searchItem').value;
+        const resultsDiv = document.getElementById('search-results');
+        
+        if (query.length < 2) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/search-medicine?name=${encodeURIComponent(query)}`);
+            if (!response.ok) throw new Error('Search failed');
+            
+            const medicines = await response.json();
+            
+            if (medicines.length === 0) {
+                resultsDiv.innerHTML = '<div class="list-group-item text-muted">No medicines found.</div>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            resultsDiv.innerHTML = medicines.map(m => {
+                const isExpired = m.expiry_date && new Date(m.expiry_date) < new Date();
+                const stockStatus = isExpired ? 'EXPIRED' : `${m.quantity} units left`;
+                const stockClass = isExpired ? 'text-danger' : 'text-muted';
+                
+                return `
+                    <div class="list-group-item search-result-item" onclick="selectItem(${m.id}, '${escapeHtml(m.name)}', ${m.quantity}, ${m.price}, '${m.expiry_date || ''}')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${escapeHtml(m.name)}</strong>
+                                <br>
+                                <small class="${stockClass}">Stock: ${stockStatus}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-primary">Rs.${parseFloat(m.price).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            resultsDiv.style.display = 'block';
+        } catch (err) {
+            console.error('Search error:', err);
+            resultsDiv.innerHTML = `<div class="list-group-item text-danger">Error: ${err.message}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+    }
+
+    function selectItem(id, name, stock, price, expiryDate) {
+        if (expiryDate && new Date(expiryDate) < new Date()) {
+            showToast('error', 'Cannot sell expired medicine!');
+            return;
+        }
+        if (stock <= 0) {
+            showToast('error', 'Out of stock!');
+            return;
+        }
+        
+        selectedMedicine = { id, name, stock, price, expiryDate };
+        document.getElementById('display-name').innerText = name;
+        document.getElementById('display-stock').innerHTML = `Stock: ${stock}`;
+        document.getElementById('display-unit-price').innerText = price.toFixed(2);
+        document.getElementById('display-expiry').innerHTML = expiryDate ? `Expires: ${expiryDate}` : '';
+        document.getElementById('selected-item-info').style.display = 'block';
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('searchItem').value = '';
+        document.getElementById('sale-qty').value = '1';
+        document.getElementById('sale-qty').max = stock;
+        calculateItemTotal();
+    }
+
+    function incrementQty() {
+        let qty = parseInt(document.getElementById('sale-qty').value);
+        if (selectedMedicine && qty < selectedMedicine.stock) {
+            document.getElementById('sale-qty').value = qty + 1;
+            calculateItemTotal();
+        }
+    }
+
+    function decrementQty() {
+        let qty = parseInt(document.getElementById('sale-qty').value);
+        if (qty > 1) {
+            document.getElementById('sale-qty').value = qty - 1;
+            calculateItemTotal();
+        }
+    }
+
+    function calculateItemTotal() {
+        const qty = parseInt(document.getElementById('sale-qty').value) || 0;
+        const price = selectedMedicine ? selectedMedicine.price : 0;
+        const total = (qty * price).toFixed(2);
+        document.getElementById('item-total').innerText = total;
+    }
+
+    function addToCart() {
+        if (!selectedMedicine) {
+            showToast('error', 'Please select a medicine first!');
+            return;
+        }
+        
+        const qty = parseInt(document.getElementById('sale-qty').value);
+        if (qty > selectedMedicine.stock) {
+            showToast('error', `Only ${selectedMedicine.stock} units available!`);
+            return;
+        }
+        
+        const existing = cart.find(item => item.id === selectedMedicine.id);
+        if (existing) {
+            if (existing.quantity + qty > selectedMedicine.stock) {
+                showToast('error', 'Cannot add more than available stock!');
+                return;
+            }
+            existing.quantity += qty;
+            existing.total = existing.quantity * existing.price;
+        } else {
+            cart.push({
+                id: selectedMedicine.id,
+                name: selectedMedicine.name,
+                price: selectedMedicine.price,
+                quantity: qty,
+                total: qty * selectedMedicine.price,
+                stock: selectedMedicine.stock
+            });
+        }
+        
+        updateCartDisplay();
+        showToast('success', `${qty} x ${selectedMedicine.name} added to cart`);
+        document.getElementById('selected-item-info').style.display = 'none';
+        selectedMedicine = null;
+    }
+
+    function updateCartDisplay() {
+        const cartBody = document.getElementById('cart-items');
+        let subtotal = 0;
+        
+        if (cart.length === 0) {
+            cartBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-5">Cart is empty</td></tr>`;
+            document.getElementById('cart-count').innerText = '0';
+            document.getElementById('cart-count-badge').innerText = '0';
+            document.getElementById('cart-value-badge').innerHTML = 'Rs.0';
+            document.getElementById('subtotal').innerText = '0.00';
+            updateTotalWithDiscount();
+            return;
+        }
+        
+        cartBody.innerHTML = cart.map((item, index) => `
+            <tr class="cart-item-row">
+                <td><strong>${escapeHtml(item.name)}</strong><br><small class="text-muted">Rs.${item.price.toFixed(2)}/unit</small></td>
+                <td>
+                    <div class="quantity-control">
+                        <button class="btn btn-sm btn-outline-secondary quantity-btn" onclick="updateQuantity(${index}, ${item.quantity - 1})">-</button>
+                        <span class="mx-2">${item.quantity}</span>
+                        <button class="btn btn-sm btn-outline-secondary quantity-btn" onclick="updateQuantity(${index}, ${item.quantity + 1})">+</button>
+                    </div>
+                </td>
+                <td>Rs.${item.price.toFixed(2)}</td>
+                <td class="fw-bold">Rs.${item.total.toFixed(2)}</td>
+                <td><i class="fas fa-trash-alt text-danger" onclick="removeFromCart(${index})" style="cursor: pointer;"></i></td>
+            </tr>
+        `).join('');
+        
+        subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        
+        document.getElementById('subtotal').innerText = subtotal.toFixed(2);
+        document.getElementById('cart-count').innerText = totalItems;
+        document.getElementById('cart-count-badge').innerText = totalItems;
+        document.getElementById('cart-value-badge').innerHTML = `Rs.${subtotal.toFixed(2)}`;
+        updateTotalWithDiscount();
+    }
+
+    function updateQuantity(index, newQty) {
+        if (newQty < 1) {
+            removeFromCart(index);
+            return;
+        }
+        if (newQty > cart[index].stock) {
+            showToast('warning', `Only ${cart[index].stock} units available!`);
+            return;
+        }
+        cart[index].quantity = newQty;
+        cart[index].total = cart[index].quantity * cart[index].price;
+        updateCartDisplay();
+    }
+
+    function removeFromCart(index) {
+        cart.splice(index, 1);
+        updateCartDisplay();
+        showToast('info', 'Item removed from cart');
+    }
+
+    function clearCart() {
+        if (cart.length > 0 && confirm('Clear entire cart?')) {
+            cart = [];
+            updateCartDisplay();
+            showToast('info', 'Cart cleared');
+        }
+    }
+
+    function applyDiscountFromSelect() {
+        const select = document.getElementById('discount-select');
+        currentDiscount = parseInt(select.value);
+        updateTotalWithDiscount();
+    }
+
+    function updateTotalWithDiscount() {
+        const subtotal = parseFloat(document.getElementById('subtotal').innerText);
+        const discountAmount = (subtotal * currentDiscount) / 100;
+        const total = subtotal - discountAmount;
+        
+        document.getElementById('discount-amount').innerText = discountAmount.toFixed(2);
+        document.getElementById('total-amount').innerText = total.toFixed(2);
+    }
+
+    function selectPaymentMethod(method) {
+        currentPaymentMethod = method;
+        document.querySelectorAll('.payment-method-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(`method-${method}`).classList.add('active');
+    }
+
+    async function completeTransaction() {
+        if (cart.length === 0) {
+            showToast('error', 'Cart is empty!');
+            return;
+        }
+        
+        const totalAmount = parseFloat(document.getElementById('total-amount').innerText);
+        const subtotal = parseFloat(document.getElementById('subtotal').innerText);
+        const customerName = document.getElementById('customer-name').value || 'Walk-in Customer';
+        const customerPhone = document.getElementById('customer-phone').value || '';
+        
+        if (!confirm(`Confirm transaction?\n\nTotal: Rs.${totalAmount.toFixed(2)}\nPayment: ${currentPaymentMethod.toUpperCase()}\n\nProceed?`)) {
+            return;
+        }
+        
+        const checkoutBtn = document.getElementById('checkout-btn');
+        checkoutBtn.disabled = true;
+        checkoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Processing...';
+        
+        try {
+            for (const item of cart) {
+                const response = await fetch('/record-sale', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        medicine_id: item.id,
+                        quantity_sold: item.quantity,
+                        sale_price: item.total,
+                        customer_name: customerName,
+                        payment_method: currentPaymentMethod
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Sale failed');
+                }
+            }
+            
+            // Save transaction for printing
+            lastTransaction = {
+                invoice_number: 'INV-' + Date.now(),
+                customer_name: customerName,
+                customer_phone: customerPhone,
+                items: [...cart],
+                subtotal: subtotal,
+                discount: currentDiscount,
+                total: totalAmount,
+                payment_method: currentPaymentMethod
+            };
+            
+            showToast('success', 'Transaction completed successfully!');
+            
+            // Show print button
+            document.getElementById('print-btn').style.display = 'block';
+            
+            // Clear cart
+            cart = [];
+            currentDiscount = 0;
+            document.getElementById('discount-select').value = '0';
+            updateCartDisplay();
+            document.getElementById('customer-name').value = '';
+            document.getElementById('customer-phone').value = '';
+            loadTodayStats();
+            
+        } catch (err) {
+            showToast('error', err.message);
+        } finally {
+            checkoutBtn.disabled = false;
+            checkoutBtn.innerHTML = '<i class="fas fa-check-circle me-2"></i> COMPLETE TRANSACTION';
+        }
+    }
+
+    function printLastReceipt() {
+        if (!lastTransaction) {
+            showToast('error', 'No transaction to print');
+            return;
+        }
+        printReceipt(lastTransaction);
+    }
+
+    function printReceipt(transactionData) {
+        const receiptWindow = window.open('', '_blank', 'width=400,height=600');
+        receiptWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Pharmacy OS - Receipt</title>
+                <style>
+                    body {
+                        font-family: 'Courier New', monospace;
+                        font-size: 12px;
+                        margin: 20px;
+                        padding: 0;
+                    }
+                    .receipt {
+                        max-width: 300px;
+                        margin: 0 auto;
+                    }
+                    .header {
+                        text-align: center;
+                        border-bottom: 1px dashed #000;
+                        padding-bottom: 10px;
+                        margin-bottom: 10px;
+                    }
+                    .header h3 {
+                        margin: 0;
+                        font-size: 16px;
+                    }
+                    .items {
+                        width: 100%;
+                        margin-bottom: 10px;
+                    }
+                    .items th, .items td {
+                        text-align: left;
+                        padding: 5px 0;
+                    }
+                    .items th:last-child, .items td:last-child {
+                        text-align: right;
+                    }
+                    .total {
+                        border-top: 1px dashed #000;
+                        padding-top: 10px;
+                        margin-top: 10px;
+                        text-align: right;
+                    }
+                    .footer {
+                        text-align: center;
+                        border-top: 1px dashed #000;
+                        padding-top: 10px;
+                        margin-top: 10px;
+                        font-size: 10px;
+                    }
+                    @media print {
+                        body { margin: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="receipt">
+                    <div class="header">
+                        <h3>PHARMACY OS</h3>
+                        <p>123 Main Street, Colombo<br>
+                        Tel: 011-2345678<br>
+                        GST No: 123456789</p>
+                        <p><strong>${transactionData.invoice_number}</strong></p>
+                        <p>Date: ${new Date().toLocaleString()}</p>
+                    </div>
+                    
+                    <div class="customer-info">
+                        <p><strong>Customer:</strong> ${transactionData.customer_name}<br>
+                        <strong>Phone:</strong> ${transactionData.customer_phone || 'N/A'}</p>
+                    </div>
+                    
+                    <table class="items">
+                        <thead>
+                            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th> </thead>
+                        <tbody>
+                            ${transactionData.items.map(item => `
+                                <tr>
+                                    <td>${item.name}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${item.price.toFixed(2)}</td>
+                                    <td>${(item.quantity * item.price).toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    
+                    <div class="total">
+                        <p><strong>Subtotal:</strong> Rs. ${transactionData.subtotal.toFixed(2)}<br>
+                        <strong>Discount (${transactionData.discount}%):</strong> -Rs. ${(transactionData.subtotal * transactionData.discount / 100).toFixed(2)}<br>
+                        <strong style="font-size: 14px;">TOTAL: Rs. ${transactionData.total.toFixed(2)}</strong><br>
+                        <strong>Payment:</strong> ${transactionData.payment_method.toUpperCase()}</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>Thank you for shopping with us!<br>
+                        *** Keep this receipt for warranty ***<br>
+                        www.pharmacyos.com</p>
+                    </div>
+                </div>
+                <script>
+                    window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
+                <\/script>
+            </body>
+            </html>
+        `);
+        receiptWindow.document.close();
+    }
+
+    async function loadTodayStats() {
+        try {
+            const response = await fetch('/get-sales');
+            const sales = await response.json();
+            const today = new Date().toDateString();
+            const todaySales = sales.filter(s => new Date(s.sale_date).toDateString() === today);
+            document.getElementById('today-sales').innerText = todaySales.length;
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function showToast(type, message) {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show toast-notification`;
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+
+</body>
+</html>
