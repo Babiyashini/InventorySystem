@@ -1710,3 +1710,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+
+@app.route('/health')
+def health_check():
+    return {"status": "healthy", "app": "pharmacy-inventory", "timestamp": "healthy"}
