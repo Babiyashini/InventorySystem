@@ -1,7 +1,15 @@
 import os
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
+from datetime import timedelta
+import mysql.connector
+import json
+from functools import wraps
+
 load_dotenv()
 
+from ml_advanced import AdvancedDemandPredictor
 # Initialize predictor globally
 advanced_predictor = AdvancedDemandPredictor()
 
