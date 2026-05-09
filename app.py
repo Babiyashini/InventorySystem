@@ -1,22 +1,6 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 import os
 from dotenv import load_dotenv
 load_dotenv()
-
-from dotenv import load_dotenv
-load_dotenv()
-
-from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash
-from functools import wraps
-import mysql.connector
-import pandas as pd
-from datetime import datetime, date, timedelta
-import json
-import warnings
-warnings.filterwarnings('ignore')
-from ml_advanced import AdvancedDemandPredictor
 
 # Initialize predictor globally
 advanced_predictor = AdvancedDemandPredictor()
@@ -1714,3 +1698,7 @@ if __name__ == '__main__':
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
