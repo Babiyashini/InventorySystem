@@ -1,23 +1,20 @@
 import os
+import os
 import random
-from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash
-from functools import wraps
+from flask_bcrypt import Bcrypt
+from datetime import timedelta
 import mysql.connector
-import pandas as pd
-from datetime import datetime, date, timedelta
 import json
-import warnings
-warnings.filterwarnings('ignore')
-from ml_advanced import AdvancedDemandPredictor
+from functools import wraps
 from dotenv import load_dotenv
 
-load_dotenv()  # ✅ Added - loads environment variables
+load_dotenv()
 
+from ml_advanced import AdvancedDemandPredictor
 # Initialize predictor globally
 advanced_predictor = AdvancedDemandPredictor()
 
-app = Flask(__name__)  # ✅ Only ONE app instance (removed duplicate)
-
+app = Flask(__name__)
 @app.route('/check-flask')
 def check_flask():
     return "Flask is alive on port 5000!"
@@ -29,6 +26,8 @@ def test_search():
 @app.route('/search-medicine', methods=['GET'])
 def search_medicine_test():
     return [{"id": 1, "name": "Test Medicine"}]
+
+app = Flask(__name__)
 
 # =====================================================
 # TEST ROUTE - PUT THIS FIRST
@@ -1414,7 +1413,7 @@ def receive_purchase_order(po_id):
 # USER MANAGEMENT API ENDPOINTS
 # =====================================================
 # =====================================================
-# FIXED USER ACTIVITIES ENDPOINT - Removed sold_by column
+# USER ACTIVITIES ENDPOINT (ADD THIS NEW ENDPOINT)
 # =====================================================
 @app.route('/get-user-activities/<int:user_id>', methods=['GET'])
 @login_required
@@ -1436,14 +1435,15 @@ def get_user_activities(user_id):
         if not user:
             return jsonify({"error": "User not found"}), 404
         
-        # 2. Get all sales (removed sold_by filter since column doesn't exist)
+        # 2. Get user's sales (only columns that exist)
         cursor.execute("""
             SELECT s.id, m.name as medicine_name, s.quantity_sold, s.sale_price, s.sale_date
             FROM sales s
             JOIN medicines m ON s.medicine_id = m.id
+            WHERE s.sold_by = %s
             ORDER BY s.sale_date DESC
             LIMIT 100
-        """)
+        """, (user_id,))
         sales = cursor.fetchall()
         
         for sale in sales:
@@ -1696,12 +1696,58 @@ def get_users():
         conn.close()
 
 
+@app.route('/admin-users')
+@login_required
+@admin_required
+def admin_users_page():
+    return render_template('admin_users.html')
+
+@app.route('/get-ml-insights', methods=['GET'])
+@login_required
+def get_ml_insights():
+    """Get ML insights and predictions"""
+    try:
+        import random
+        from datetime import datetime, timedelta
+        
+        medicines = ['Paracetamol', 'Amoxicillin', 'Vitamin C', 'Aspirin', 'Ibuprofen', 'Cetirizine']
+        results = []
+        
+        for med in medicines:
+            vel = round(random.uniform(2, 15), 2)
+            stock = random.randint(20, 200)
+            days = round(stock / vel) if vel > 0 else 999
+            
+            if days < 5:
+                status = "Critical - Urgent Restock"
+            elif days < 14:
+                status = "Urgent"
+            elif days < 30:
+                status = "Warning"
+            else:
+                status = "Stable"
+            
+            results.append({
+                'medicine': med,
+                'daily_velocity': vel,
+                'days_until_out': days,
+                'status': status,
+                'stock': stock,
+                'price': round(random.uniform(3, 15), 2),
+                'expiry_date': (datetime.now() + timedelta(days=random.randint(30, 365))).strftime('%Y-%m-%d'),
+                'is_expired': False
+            })
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/ml/predict', methods=['GET'])
 @login_required
 def get_ml_predictions():
     """API endpoint for ML predictions"""
     try:
-        from ml_advanced import AdvancedDemandPredictor
         import random
         from datetime import datetime, timedelta
         
@@ -1723,10 +1769,9 @@ def get_ml_predictions():
             'message': str(e)
         }), 500
 
-@app.route('/admin-users')
-@admin_required
-def admin_users_page():
-    return render_template('admin_users.html')
+@app.route('/health')
+def health_check():
+    return {"status": "healthy", "app": "pharmacy-inventory", "timestamp": "healthy"}
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

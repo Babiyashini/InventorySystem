@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pharmacy OS - ML Insights Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Additional dashboard styles */
+        .stat-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .prediction-badge {
+            font-size: 0.8rem;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        
+        .urgent-critical {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .warning {
+            background: linear-gradient(135deg, #ffc107, #ffb300);
+            color: #856404;
+        }
+        
+        .stable {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .no-data {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: white;
+        }
+        
+        .insight-card {
+            border-left: 4px solid;
+            transition: all 0.3s;
+        }
+        
+        .insight-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .velocity-chart-container {
+            position: relative;
+            height: 400px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .refresh-btn {
+            transition: transform 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            transform: rotate(180deg);
+        }
+        
+        .table-predictions tr {
+            transition: all 0.2s;
+        }
+        
+        .table-predictions tr:hover {
+            background-color: #f8f9fa;
+            transform: scale(1.01);
+        }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+   <nav id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-hospital-user me-2"></i>PHARMACY OS
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">
+            <i class="fas fa-user-circle me-2"></i> {{ session['username'] }}
+        </div>
+        <div class="user-role">
+            <i class="fas fa-shield-alt me-1"></i> {{ session['role'] }}
+        </div>
+    </div>
+    
+    <div class="sidebar-menu-wrapper">
+        <a href="/dashboard" class="nav-link">
+            <i class="fas fa-tachometer-alt me-2"></i> <span>Dashboard</span>
+        </a>
+        <a href="/insights" class="nav-link">
+            <i class="fas fa-chart-line me-2"></i> <span>ML Insights</span>
+        </a>
+        <a href="/inventory" class="nav-link">
+            <i class="fas fa-boxes me-2"></i> <span>Inventory</span>
+        </a>
+        <a href="/sales" class="nav-link">
+            <i class="fas fa-shopping-cart me-2"></i> <span>Point of Sale</span>
+        </a>
+        <a href="/suppliers" class="nav-link">
+            <i class="fas fa-truck me-2"></i> <span>Suppliers</span>
+        </a>
+        <a href="/batches" class="nav-link">
+            <i class="fas fa-layer-group me-2"></i> <span>Batches</span>
+        </a>
+        <a href="/reports" class="nav-link">
+            <i class="fas fa-chart-bar me-2"></i> <span>Reports</span>
+        </a>
+        <a href="/purchase-orders" class="nav-link">
+            <i class="fas fa-file-invoice me-2"></i> <span>Purchase Orders</span>
+        </a>
+        <a href="/profile" class="nav-link">
+            <i class="fas fa-user-circle me-2"></i> <span>Profile</span>
+        </a>
+        
+        {% if session['role'] == 'Admin' %}
+        <a href="/users" class="nav-link">
+            <i class="fas fa-users me-2"></i> <span>User Management</span>
+        </a>
+        <a href="/admin-users" class="nav-link">
+            <i class="fas fa-address-book me-2"></i> <span>Staff Directory</span>
+        </a>
+        <a href="/stock-movements" class="nav-link">
+            <i class="fas fa-exchange-alt me-2"></i> <span>Stock Movements</span>
+        </a>
+        <a href="/invoices" class="nav-link">
+            <i class="fas fa-receipt me-2"></i> <span>Invoice History</span>
+        </a>
+        {% endif %}
+        
+        <a href="/logout" class="nav-link btn-logout">
+            <i class="fas fa-sign-out-alt me-2"></i> <span>Logout</span>
+        </a>
+    </div>
+</nav>
+
+    <div id="main-content">
+        <div class="page-header">
+            <div>
+                <h4 class="fw-bold mb-0">
+                    <i class="fas fa-brain me-2 text-primary"></i>
+                    ML Insights & Predictive Analytics
+                </h4>
+                <small class="text-muted">
+                    <i class="fas fa-chart-line me-1"></i> Real-time demand forecasting
+                    <i class="fas fa-robot ms-3 me-1"></i> AI-powered recommendations
+                </small>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="refreshDashboard()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <span class="badge bg-primary rounded-pill px-3 py-2">
+                    <i class="fas fa-user-shield me-1"></i> Admin Mode
+                </span>
+                <div class="user-badge">
+                    <i class="fas fa-user-circle me-1"></i> Babiyashini
+                </div>
+            </div>
+        </div>
+
+        <div class="content-body">
+            <!-- Stats Cards -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold text-uppercase">Total Stock Value</small>
+                                    <h3 class="fw-bold mt-2 mb-0" id="total-stock-value">LKR 0.00</h3>
+                                    <small class="text-success" id="stock-trend">
+                                        <i class="fas fa-arrow-up"></i> Loading...
+                                    </small>
+                                </div>
+                                <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-chart-line fa-2x text-primary"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold text-uppercase">Low Stock Alerts</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-danger" id="low-stock-count">0</h3>
+                                    <small class="text-muted">Need immediate attention</small>
+                                </div>
+                                <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold text-uppercase">Expired Medicines</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-warning" id="expired-count">0</h3>
+                                    <small class="text-muted">Remove from inventory</small>
+                                </div>
+                                <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-calendar-times fa-2x text-warning"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted fw-bold text-uppercase">Total Medicines</small>
+                                    <h3 class="fw-bold mt-2 mb-0 text-info" id="total-medicines">0</h3>
+                                    <small class="text-muted">Active inventory items</small>
+                                </div>
+                                <div class="bg-info bg-opacity-10 p-3 rounded-circle">
+                                    <i class="fas fa-capsules fa-2x text-info"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Charts Row -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="fw-bold mb-0">
+                                    <i class="fas fa-chart-bar me-2 text-primary"></i>
+                                    Sales Velocity Analysis
+                                </h6>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" onclick="changeChartType('bar')">Bar</button>
+                                    <button class="btn btn-outline-secondary" onclick="changeChartType('line')">Line</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="velocity-chart-container">
+                                <canvas id="salesChart" height="300"></canvas>
+                            </div>
+                            <div class="mt-3 text-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Sales velocity = Average units sold per day over last 30 days
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white py-3">
+                            <h6 class="fw-bold mb-0">
+                                <i class="fas fa-robot me-2 text-info"></i>
+                                AI Recommendations
+                            </h6>
+                        </div>
+                        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                            <div id="ai-alerts-list">
+                                <div class="text-center text-muted py-5">
+                                    <div class="loading-spinner mb-3"></div>
+                                    <div>Loading AI insights...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Predictions Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0">
+                            <i class="fas fa-table me-2 text-primary"></i>
+                            Detailed ML Predictions & Inventory Analysis
+                        </h6>
+                        <div>
+                            <input type="text" id="searchPredictions" class="form-control form-control-sm" 
+                                   placeholder="Search medicine..." onkeyup="filterPredictions()">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-predictions mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><i class="fas fa-pills me-1"></i> Medicine</th>
+                                    <th><i class="fas fa-boxes me-1"></i> Current Stock</th>
+                                    <th><i class="fas fa-tachometer-alt me-1"></i> Sales Velocity</th>
+                                    <th><i class="fas fa-hourglass-half me-1"></i> Days Until Stockout</th>
+                                    <th><i class="fas fa-chart-line me-1"></i> Trend</th>
+                                    <th><i class="fas fa-tag me-1"></i> Unit Price</th>
+                                    <th><i class="fas fa-calendar-alt me-1"></i> Status</th>
+                                    <th><i class="fas fa-chart-line me-1"></i> Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ml-table-body">
+                                <tr>
+                                    <td colspan="8" class="text-center py-5">
+                                        <div class="loading-spinner mb-2"></div>
+                                        Loading predictions...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights Summary -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm bg-gradient-primary">
+                        <div class="card-body">
+                            <h6 class="fw-bold mb-3">
+                                <i class="fas fa-lightbulb me-2 text-warning"></i>
+                                Key Insights & Recommendations
+                            </h6>
+                            <div id="key-insights" class="row">
+                                <div class="col-md-4 mb-2">
+                                    <div class="insight-card p-3 bg-light rounded">
+                                        <i class="fas fa-chart-line text-primary me-2"></i>
+                                        <span id="insight-1">Loading insights...</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <div class="insight-card p-3 bg-light rounded">
+                                        <i class="fas fa-tachometer-alt text-success me-2"></i>
+                                        <span id="insight-2">Loading insights...</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <div class="insight-card p-3 bg-light rounded">
+                                        <i class="fas fa-chart-line text-info me-2"></i>
+                                        <span id="insight-3">Loading insights...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let salesChart = null;
+        let currentChartType = 'bar';
+        let mlData = [];
+
+        // Initialize dashboard on load
+        async function initializeDashboard() {
+            await loadMLInsights();
+            await updateDashboardStats();
+            // Auto-refresh every 30 seconds
+            setInterval(refreshDashboard, 30000);
+        }
+
+        // Refresh all data
+        async function refreshDashboard() {
+            await loadMLInsights();
+            await updateDashboardStats();
+            showToast('info', 'Dashboard refreshed successfully');
+        }
+
+        // Load ML insights data
+        async function loadMLInsights() {
+            try {
+                const response = await fetch('/get-ml-insights');
+                if (!response.ok) throw new Error('Failed to fetch insights');
+                
+                mlData = await response.json();
+                console.log('ML Data loaded:', mlData); // Debug log
+                
+                // Update chart
+                updateChart(mlData);
+                
+                // Update AI alerts
+                updateAlerts(mlData);
+                
+                // Update detailed table
+                updateMLTable(mlData);
+                
+                // Update key insights
+                updateKeyInsights(mlData);
+                
+            } catch (error) {
+                console.error("Error loading insights:", error);
+                document.getElementById('ai-alerts-list').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Error loading insights: ${error.message}
+                        <button class="btn btn-sm btn-outline-danger mt-2" onclick="refreshDashboard()">Retry</button>
+                    </div>
+                `;
+                document.getElementById('ml-table-body').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-danger py-5">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                            Error loading predictions. Please refresh the page.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Update chart with ML data
+        function updateChart(data) {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            
+            // Filter out medicines with zero velocity for better visualization
+            const chartData = data.filter(item => item.daily_velocity > 0 || item.status === 'Critical - Urgent Restock');
+            const labels = chartData.map(item => item.medicine.length > 20 ? item.medicine.substring(0, 20) + '...' : item.medicine);
+            const velocities = chartData.map(item => item.daily_velocity);
+            const colors = chartData.map(item => {
+                if (item.status === 'Critical - Urgent Restock') return 'rgba(220, 53, 69, 0.7)';
+                if (item.status === 'Urgent') return 'rgba(255, 193, 7, 0.7)';
+                if (item.status === 'Warning') return 'rgba(23, 162, 184, 0.7)';
+                return 'rgba(40, 167, 69, 0.7)';
+            });
+            
+            if (salesChart) {
+                salesChart.destroy();
+            }
+            
+            const chartConfig = {
+                type: currentChartType,
+                data: {
+                    labels: labels.length > 0 ? labels : ['No Data'],
+                    datasets: [{
+                        label: 'Sales Velocity (Units/Day)',
+                        data: velocities.length > 0 ? velocities : [0],
+                        backgroundColor: colors,
+                        borderColor: '#3498db',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        barPercentage: 0.7,
+                        categoryPercentage: 0.8,
+                        tension: 0.4
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    plugins: { 
+                        legend: { 
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const item = chartData[context.dataIndex];
+                                    return [
+                                        `Velocity: ${context.raw.toFixed(2)} units/day`,
+                                        `Status: ${item.status}`,
+                                        `Stock: ${item.stock} units`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Units Sold per Day',
+                                font: { weight: 'bold', size: 12 }
+                            },
+                            grid: {
+                                color: '#e9ecef'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Medicine',
+                                font: { weight: 'bold', size: 12 }
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 10 }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            };
+            
+            salesChart = new Chart(ctx, chartConfig);
+        }
+
+        // Change chart type
+        function changeChartType(type) {
+            currentChartType = type;
+            if (mlData.length > 0) {
+                updateChart(mlData);
+            }
+        }
+
+        // Update AI alerts
+        function updateAlerts(data) {
+            const alertsList = document.getElementById('ai-alerts-list');
+            
+            // Filter urgent items
+            const urgentItems = data.filter(item => 
+                item.status === 'Critical - Urgent Restock' || 
+                item.status === 'Urgent' ||
+                item.status === 'Expired - Remove from Stock'
+            );
+            
+            if (urgentItems.length === 0) {
+                alertsList.innerHTML = `
+                    <div class="text-center text-success py-4">
+                        <i class="fas fa-check-circle fa-3x mb-3"></i>
+                        <div class="fw-bold">All systems stable!</div>
+                        <small class="text-muted">No urgent actions required at this time.</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            alertsList.innerHTML = urgentItems.map(item => {
+                let alertClass = 'danger';
+                let icon = '⚠️';
+                let bgClass = 'bg-danger bg-opacity-10';
+                
+                if (item.status === 'Expired - Remove from Stock') {
+                    alertClass = 'warning';
+                    icon = '❌';
+                    bgClass = 'bg-warning bg-opacity-10';
+                } else if (item.status === 'Critical - Urgent Restock') {
+                    alertClass = 'danger';
+                    icon = '🚨';
+                    bgClass = 'bg-danger bg-opacity-10';
+                } else if (item.status === 'Urgent') {
+                    alertClass = 'warning';
+                    icon = '⚠️';
+                    bgClass = 'bg-warning bg-opacity-10';
+                }
+                
+                return `
+                    <div class="mb-3 p-3 border-start border-${alertClass} border-4 rounded ${bgClass} insight-card">
+                        <div class="fw-bold mb-2">
+                            <span class="h6">${icon} ${escapeHtml(item.medicine)}</span>
+                        </div>
+                        <div class="small">
+                            ${item.status === 'Expired - Remove from Stock' ? 
+                                `<i class="fas fa-calendar-times me-1"></i> Expired on ${item.expiry_date}` : 
+                                `<i class="fas fa-hourglass-half me-1"></i> Will run out in ${item.days_until_out} days`
+                            }
+                        </div>
+                        <div class="small mt-1">
+                            <i class="fas fa-boxes me-1"></i> Current Stock: ${item.stock} units
+                        </div>
+                        ${item.daily_velocity > 0 ? 
+                            `<div class="small mt-1">
+                                <i class="fas fa-chart-line me-1"></i> Selling: ${item.daily_velocity.toFixed(1)} units/day
+                            </div>` : 
+                            '<div class="small mt-1 text-muted"><i class="fas fa-chart-line me-1"></i> No sales data available</div>'
+                        }
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-${alertClass}" onclick="window.location.href='/inventory'">
+                                <i class="fas fa-shopping-cart me-1"></i> Order Now
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update detailed predictions table
+        function updateMLTable(data) {
+            const tableBody = document.getElementById('ml-table-body');
+            
+            if (data.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="fas fa-database fa-3x mb-3 d-block"></i>
+                            No data available. Add medicines and record sales to see predictions.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tableBody.innerHTML = data.map(item => {
+                let statusClass = '';
+                let statusIcon = '';
+                let trendIcon = '';
+                let trendText = '';
+                
+                if (item.status === 'Critical - Urgent Restock') {
+                    statusClass = 'urgent-critical status-badge';
+                    statusIcon = '🚨';
+                    trendIcon = '📉';
+                    trendText = 'Critical Drop';
+                } else if (item.status === 'Urgent') {
+                    statusClass = 'warning status-badge';
+                    statusIcon = '⚠️';
+                    trendIcon = '📉';
+                    trendText = 'Declining';
+                } else if (item.status === 'Warning') {
+                    statusClass = 'bg-info text-dark status-badge';
+                    statusIcon = '⚠️';
+                    trendIcon = '📊';
+                    trendText = 'Watch';
+                } else if (item.status === 'Expired - Remove from Stock') {
+                    statusClass = 'bg-secondary text-white status-badge';
+                    statusIcon = '❌';
+                    trendIcon = '⚠️';
+                    trendText = 'Expired';
+                } else if (item.status === 'Stable') {
+                    statusClass = 'stable status-badge';
+                    statusIcon = '✅';
+                    trendIcon = '📈';
+                    trendText = 'Stable';
+                } else {
+                    statusClass = 'no-data status-badge';
+                    statusIcon = '❓';
+                    trendIcon = '❓';
+                    trendText = 'No Data';
+                }
+                
+                // Determine stock level color
+                let stockColor = '';
+                if (item.stock < 10) stockColor = 'text-danger fw-bold';
+                else if (item.stock < 20) stockColor = 'text-warning';
+                else stockColor = 'text-success';
+                
+                return `
+                    <tr>
+                        <td class="fw-bold">${escapeHtml(item.medicine)}</td>
+                        <td class="${stockColor}">${item.stock} units</td>
+                        <td>${item.daily_velocity.toFixed(2)} units/day</td>
+                        <td>
+                            ${item.days_until_out === 999 ? '∞' : 
+                                `<span class="${item.days_until_out < 7 ? 'text-danger fw-bold' : ''}">
+                                    ${item.days_until_out} days
+                                </span>`
+                            }
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark">
+                                ${trendIcon} ${trendText}
+                            </span>
+                        </td>
+                        <td>Rs. ${item.price.toFixed(2)}</td>
+                        <td>
+                            <span class="${statusClass}">
+                                ${statusIcon} ${item.status}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="window.location.href='/sales'">
+                                <i class="fas fa-shopping-cart me-1"></i> Sell
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update key insights summary
+        function updateKeyInsights(data) {
+            const urgentCount = data.filter(item => item.status.includes('Urgent') || item.status.includes('Critical')).length;
+            const expiredCount = data.filter(item => item.status === 'Expired - Remove from Stock').length;
+            const highVelocity = data.filter(item => item.daily_velocity > 10).length;
+            const lowStock = data.filter(item => item.stock < 10 && item.status !== 'Expired - Remove from Stock').length;
+            
+            document.getElementById('insight-1').innerHTML = `
+                ${urgentCount} medicine${urgentCount !== 1 ? 's' : ''} ${urgentCount > 0 ? 'need immediate restocking' : 'with healthy stock levels'}
+                <br><small class="text-muted">${urgentCount > 0 ? 'Action required within 7 days' : 'All good'}</small>
+            `;
+            
+            document.getElementById('insight-2').innerHTML = `
+                ${lowStock} medicine${lowStock !== 1 ? 's' : ''} ${lowStock > 0 ? 'with low stock (<10 units)' : 'with adequate stock levels'}
+                <br><small class="text-muted">${lowStock > 0 ? 'Consider reordering soon' : 'Inventory well maintained'}</small>
+            `;
+            
+            document.getElementById('insight-3').innerHTML = `
+                ${highVelocity} medicine${highVelocity !== 1 ? 's' : ''} ${highVelocity > 0 ? 'with high sales velocity' : 'with consistent sales patterns'}
+                <br><small class="text-muted">${highVelocity > 0 ? 'Fast-moving items' : 'Monitor for trends'}</small>
+            `;
+        }
+
+        // Update dashboard stats
+        async function updateDashboardStats() {
+            try {
+                const response = await fetch('/get-dashboard-stats');
+                if (!response.ok) throw new Error('Failed to fetch stats');
+                
+                const stats = await response.json();
+                
+                document.getElementById('total-stock-value').innerHTML = stats.stock_value || 'LKR 0.00';
+                document.getElementById('low-stock-count').innerText = stats.low_stock_count || 0;
+                document.getElementById('expired-count').innerText = stats.expired_count || 0;
+                document.getElementById('total-medicines').innerText = mlData.length || 0;
+                
+                // Add trend indicator (mock for now)
+                const trendElement = document.getElementById('stock-trend');
+                if (stats.low_stock_count > 5) {
+                    trendElement.innerHTML = '<i class="fas fa-arrow-down text-danger"></i> Decreasing';
+                    trendElement.className = 'text-danger';
+                } else {
+                    trendElement.innerHTML = '<i class="fas fa-arrow-up text-success"></i> Stable';
+                    trendElement.className = 'text-success';
+                }
+                
+            } catch (error) {
+                console.error("Error updating stats:", error);
+            }
+        }
+
+        // Filter predictions table
+        function filterPredictions() {
+            const searchTerm = document.getElementById('searchPredictions').value.toLowerCase();
+            const rows = document.querySelectorAll('#ml-table-body tr');
+            
+            rows.forEach(row => {
+                const medicineName = row.cells[0]?.innerText.toLowerCase() || '';
+                if (medicineName.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Show toast notification
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on load
+        initializeDashboard();
+    </script>
+</body>
+</html>

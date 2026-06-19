@@ -1,23 +1,19 @@
 import os
-import random
-from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash
-from functools import wraps
-import mysql.connector
-import pandas as pd
-from datetime import datetime, date, timedelta
-import json
-import warnings
-warnings.filterwarnings('ignore')
-from ml_advanced import AdvancedDemandPredictor
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
+from datetime import timedelta
+import mysql.connector
+import json
+from functools import wraps
 
-load_dotenv()  # ✅ Added - loads environment variables
+load_dotenv()
 
+from ml_advanced import AdvancedDemandPredictor
 # Initialize predictor globally
 advanced_predictor = AdvancedDemandPredictor()
 
-app = Flask(__name__)  # ✅ Only ONE app instance (removed duplicate)
-
+app = Flask(__name__)
 @app.route('/check-flask')
 def check_flask():
     return "Flask is alive on port 5000!"
@@ -29,6 +25,8 @@ def test_search():
 @app.route('/search-medicine', methods=['GET'])
 def search_medicine_test():
     return [{"id": 1, "name": "Test Medicine"}]
+
+app = Flask(__name__)
 
 # =====================================================
 # TEST ROUTE - PUT THIS FIRST
@@ -1414,7 +1412,7 @@ def receive_purchase_order(po_id):
 # USER MANAGEMENT API ENDPOINTS
 # =====================================================
 # =====================================================
-# FIXED USER ACTIVITIES ENDPOINT - Removed sold_by column
+# USER ACTIVITIES ENDPOINT (ADD THIS NEW ENDPOINT)
 # =====================================================
 @app.route('/get-user-activities/<int:user_id>', methods=['GET'])
 @login_required
@@ -1436,14 +1434,15 @@ def get_user_activities(user_id):
         if not user:
             return jsonify({"error": "User not found"}), 404
         
-        # 2. Get all sales (removed sold_by filter since column doesn't exist)
+        # 2. Get user's sales (only columns that exist)
         cursor.execute("""
             SELECT s.id, m.name as medicine_name, s.quantity_sold, s.sale_price, s.sale_date
             FROM sales s
             JOIN medicines m ON s.medicine_id = m.id
+            WHERE s.sold_by = %s
             ORDER BY s.sale_date DESC
             LIMIT 100
-        """)
+        """, (user_id,))
         sales = cursor.fetchall()
         
         for sale in sales:
@@ -1696,37 +1695,22 @@ def get_users():
         conn.close()
 
 
-@app.route('/api/ml/predict', methods=['GET'])
-@login_required
-def get_ml_predictions():
-    """API endpoint for ML predictions"""
-    try:
-        from ml_advanced import AdvancedDemandPredictor
-        import random
-        from datetime import datetime, timedelta
-        
-        dates = [(datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
-        predictions = {}
-        base = random.randint(30, 60)
-        for i, date in enumerate(dates):
-            predictions[date] = round(base + i * 2 + random.randint(-5, 10), 2)
-        
-        return jsonify({
-            'status': 'success',
-            'predictions': predictions,
-            'message': 'Predictions generated successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-
 @app.route('/admin-users')
+@login_required
 @admin_required
 def admin_users_page():
     return render_template('admin_users.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+@app.route('/health')
+def health_check():
+    return {"status": "healthy", "app": "pharmacy-inventory", "timestamp": "healthy"}
