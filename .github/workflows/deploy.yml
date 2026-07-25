@@ -20,8 +20,12 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          debug: true
           script: |
             echo "Starting deployment..."
+            echo "Connected to EC2!"
+            echo "Hostname: $(hostname)"
             
             # Navigate to project directory
             cd /home/ec2-user/InventorySystem || exit 1
@@ -71,5 +75,5 @@ jobs:
             if curl -s http://localhost:5000/check-flask | grep -q "Flask is alive"; then
               echo "Application is responding!"
             else
-              echo " Application may not be responding correctly."
+              echo "Application may not be responding correctly."
             fi
