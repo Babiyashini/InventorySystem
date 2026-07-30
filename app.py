@@ -25,14 +25,6 @@ def check_flask():
 @app.route('/test-search')
 def test_search():
     return "Test works!"
-
-@app.route('/search-medicine', methods=['GET'])
-def search_medicine_test():
-    return [{"id": 1, "name": "Test Medicine"}]
-
-# =====================================================
-# TEST ROUTE - PUT THIS FIRST
-# =====================================================
 @app.route('/test123')
 def test123():
     return "Test route is working!"
